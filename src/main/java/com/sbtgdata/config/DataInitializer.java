@@ -22,11 +22,9 @@ public class DataInitializer {
             PasswordEncoder passwordEncoder,
             ViewService viewService) {
         return args -> {
-            // 1. Create Roles if they don't exist
             createRoleIfNotFound(roleRepository, "ADMIN", viewService.getAllViews().keySet());
             createRoleIfNotFound(roleRepository, "USER", new HashSet<>());
 
-            // 2. Create or Update Admin User
             User admin;
             if (userRepository.existsByEmail("admin")) {
                 admin = userRepository.findByEmail("admin").get();
@@ -36,7 +34,6 @@ public class DataInitializer {
                 admin.setPassword(passwordEncoder.encode("admin"));
             }
 
-            // Ensure admin has ADMIN role
             Set<String> roles = admin.getRoles();
             if (roles == null) {
                 roles = new HashSet<>();
@@ -60,7 +57,6 @@ public class DataInitializer {
             roleRepository.save(role);
             System.out.println("Created role: " + name);
         } else if (name.equals("ADMIN")) {
-            // Optional: Update ADMIN with all new views on restart
             Role adminRole = roleRepository.findByName("ADMIN").get();
             adminRole.setAllowedViews(allowedViews);
             roleRepository.save(adminRole);

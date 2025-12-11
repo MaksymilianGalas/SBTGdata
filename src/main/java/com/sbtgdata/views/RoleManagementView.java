@@ -74,7 +74,6 @@ public class RoleManagementView extends VerticalLayout {
 
         Map<String, String> availableViews = viewService.getAllViews();
 
-        // Filter out public/internal views that should be accessible to everyone
         availableViews.entrySet().removeIf(entry -> {
             String className = entry.getKey();
             return className.contains("LoginView") ||

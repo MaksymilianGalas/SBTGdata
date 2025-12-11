@@ -23,7 +23,6 @@ public class ViewService {
             try {
                 Class<?> cls = Class.forName(component.getBeanClassName());
                 String title = cls.getSimpleName();
-                // You could also look for @PageTitle if you want a nicer name
                 com.vaadin.flow.router.PageTitle pageTitle = cls.getAnnotation(com.vaadin.flow.router.PageTitle.class);
                 if (pageTitle != null) {
                     title = pageTitle.value();

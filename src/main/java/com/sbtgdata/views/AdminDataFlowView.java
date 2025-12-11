@@ -44,7 +44,6 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
 
         H2 title = new H2("Wszystkie przepływy danych");
 
-        // Filter by user
         TextField filterField = new TextField("Filtruj po emailu użytkownika");
         filterField.setPlaceholder("Wpisz email...");
         filterField.setClearButtonVisible(true);
@@ -99,7 +98,6 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
 
         dialogLayout.add(new H3("Właściciel: " + flow.getOwnerEmail()));
 
-        // Input schema
         VerticalLayout schemaLayout = new VerticalLayout();
         schemaLayout.add(new H3("Schemat danych wejściowych:"));
         if (flow.getInputSchema() != null && !flow.getInputSchema().isEmpty()) {
@@ -110,7 +108,6 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
             schemaLayout.add(new com.vaadin.flow.component.html.Div("Brak zdefiniowanego schematu"));
         }
 
-        // Python code
         VerticalLayout codeLayout = new VerticalLayout();
         codeLayout.add(new H3("Kod Python:"));
         Pre codeBlock = new Pre(flow.getPythonCode() != null ? flow.getPythonCode() : "Brak kodu");
@@ -119,7 +116,6 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
         codeBlock.getStyle().set("border-radius", "5px");
         codeLayout.add(codeBlock);
 
-        // Additional libraries
         if (flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty()) {
             VerticalLayout libsLayout = new VerticalLayout();
             libsLayout.add(new H3("Dodatkowe biblioteki:"));

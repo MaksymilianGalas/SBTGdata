@@ -9,7 +9,6 @@ public class RootView implements BeforeEnterObserver {
     
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-        // Zawsze przekieruj na dashboard, nawet jeśli jest parametr continue
         event.rerouteTo("dashboard");
     }
 }

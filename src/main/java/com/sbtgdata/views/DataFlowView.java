@@ -83,14 +83,11 @@ public class DataFlowView extends VerticalLayout {
             nameField.setValue(flow.getName());
         }
 
-        // Input schema section
         VerticalLayout schemaLayout = new VerticalLayout();
         schemaLayout.add(new H2("Schemat danych wejściowych"));
 
-        // Container for schema fields
         VerticalLayout schemaFieldsContainer = new VerticalLayout();
 
-        // Load existing schema
         if (flow.getInputSchema() != null && !flow.getInputSchema().isEmpty()) {
             flow.getInputSchema().forEach((varName, varType) -> {
                 schemaFieldsContainer.add(createSchemaField(varName, varType, schemaFieldsContainer));
@@ -103,7 +100,6 @@ public class DataFlowView extends VerticalLayout {
 
         schemaLayout.add(schemaFieldsContainer, addSchemaFieldButton);
 
-        // Python code
         TextArea pythonCodeArea = new TextArea("Kod funkcji Python");
         pythonCodeArea.setWidthFull();
         pythonCodeArea.setHeight("300px");
@@ -112,7 +108,6 @@ public class DataFlowView extends VerticalLayout {
             pythonCodeArea.setValue(flow.getPythonCode());
         }
 
-        // Additional libraries
         Checkbox hasLibrariesCheckbox = new Checkbox("Mam dodatkowe biblioteki");
         TextArea librariesArea = new TextArea("Dodatkowe biblioteki (jedna na linię)");
         librariesArea.setWidthFull();
@@ -133,33 +128,31 @@ public class DataFlowView extends VerticalLayout {
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Zapisz", e -> {
-            // Validate
             if (nameField.getValue().isEmpty()) {
                 Notification.show("Nazwa przepływu jest wymagana", 3000, Notification.Position.MIDDLE);
                 return;
             }
 
-            // Collect schema
             Map<String, String> schema = new HashMap<>();
             schemaFieldsContainer.getChildren().forEach(component -> {
                 if (component instanceof HorizontalLayout) {
                     HorizontalLayout fieldLayout = (HorizontalLayout) component;
-                    ComboBox<String> typeCombo = (ComboBox<String>) fieldLayout.getComponentAt(0);
-                    TextField varNameField = (TextField) fieldLayout.getComponentAt(1);
-
-                    if (!varNameField.getValue().isEmpty()) {
-                        schema.put(varNameField.getValue(), typeCombo.getValue());
+                    var first = fieldLayout.getComponentAt(0);
+                    var second = fieldLayout.getComponentAt(1);
+                    if (first instanceof ComboBox<?> combo && second instanceof TextField varNameField) {
+                        Object value = combo.getValue();
+                        if (value instanceof String type && !varNameField.getValue().isEmpty()) {
+                            schema.put(varNameField.getValue(), type);
+                        }
                     }
                 }
             });
 
-            // Set flow properties
             flow.setName(nameField.getValue());
             flow.setInputSchema(schema);
             flow.setPythonCode(pythonCodeArea.getValue());
             flow.setAdditionalLibraries(hasLibrariesCheckbox.getValue() ? librariesArea.getValue() : null);
 
-            // Set owner if new
             if (flow.getId() == null) {
                 String currentUserEmail = securityService.getAuthenticatedUser().orElse(null);
                 flow.setOwnerEmail(currentUserEmail);

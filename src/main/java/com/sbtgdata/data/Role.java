@@ -13,7 +13,7 @@ public class Role {
     private String id;
 
     private String name;
-    private Set<String> allowedViews; // Stores fully qualified class names of allowed views
+    private Set<String> allowedViews;
 
     public Role() {
         this.allowedViews = new HashSet<>();

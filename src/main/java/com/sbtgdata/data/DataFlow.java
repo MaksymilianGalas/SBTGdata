@@ -15,7 +15,7 @@ public class DataFlow {
 
     private String name;
     private String ownerEmail;
-    private Map<String, String> inputSchema; // variable name -> data type
+    private Map<String, String> inputSchema;
     private String pythonCode;
     private String additionalLibraries;
     private LocalDateTime createdAt;

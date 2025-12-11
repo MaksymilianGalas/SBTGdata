@@ -37,7 +37,6 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
             createDrawer();
         } catch (Exception e) {
             e.printStackTrace();
-            // Fallback UI for debugging
             addToNavbar(new H1("Error: " + e.getMessage()));
             VerticalLayout errorLayout = new VerticalLayout();
             errorLayout.add(new H1("Initialization Error"));
@@ -76,14 +75,12 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
         Map<String, String> allViews = viewService.getAllViews();
         boolean isAdmin = securityService.hasRole("ADMIN");
 
-        // Sort views by name or some other criteria if needed
         allViews.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue())
                 .forEach(entry -> {
                     String className = entry.getKey();
                     String viewName = entry.getValue();
 
-                    // Skip internal/public views
                     if (className.contains("LoginView") ||
                             className.contains("RegisterView") ||
                             className.contains("WelcomeView") ||
@@ -91,7 +88,6 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
                         return;
                     }
 
-                    // Special handling for Admin Panel - only show if user is explicitly ADMIN
                     if (className.contains("RoleManagementView") && !isAdmin) {
                         return;
                     }
@@ -99,7 +95,6 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
                     if (isAdmin || allowedViews.contains(className)) {
                         try {
                             Class<?> clazz = Class.forName(className);
-                            // Only add if it's a Component (can be used in RouterLink)
                             if (Component.class.isAssignableFrom(clazz)) {
                                 @SuppressWarnings("unchecked")
                                 Class<? extends Component> viewClass = (Class<? extends Component>) clazz;
@@ -134,22 +129,18 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
         Class<?> targetClass = event.getNavigationTarget();
         String targetClassName = targetClass.getName();
 
-        // Always allow public views
         if (targetClassName.contains("LoginView") ||
                 targetClassName.contains("RegisterView") ||
                 targetClassName.contains("WelcomeView")) {
             return;
         }
 
-        // Always allow ADMIN
         if (securityService.hasRole("ADMIN")) {
             return;
         }
 
-        // Check dynamic permissions
         Set<String> allowedViews = getAllowedViewsForCurrentUser();
         if (!allowedViews.contains(targetClassName)) {
-            // Reroute to WelcomeView if access denied
             event.rerouteTo(WelcomeView.class);
         }
     }

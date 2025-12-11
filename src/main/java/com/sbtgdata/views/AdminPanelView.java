@@ -91,7 +91,6 @@ public class AdminPanelView extends VerticalLayout implements BeforeEnterObserve
 
         VerticalLayout dialogLayout = new VerticalLayout();
 
-        // Get all available roles from database
         List<Role> allRoles = roleRepository.findAll();
         Set<String> roleNames = allRoles.stream()
                 .map(Role::getName)
@@ -101,7 +100,6 @@ public class AdminPanelView extends VerticalLayout implements BeforeEnterObserve
         rolesGroup.setLabel("Role użytkownika");
         rolesGroup.setItems(roleNames);
 
-        // Set current user roles
         if (user.getRoles() != null) {
             rolesGroup.setValue(user.getRoles());
         }
