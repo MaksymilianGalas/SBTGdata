@@ -37,9 +37,9 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
             createDrawer();
         } catch (Exception e) {
             e.printStackTrace();
-            addToNavbar(new H1("Error: " + e.getMessage()));
+            addToNavbar(new H1("Błąd inicjalizacji: " + e.getMessage()));
             VerticalLayout errorLayout = new VerticalLayout();
-            errorLayout.add(new H1("Initialization Error"));
+            errorLayout.add(new H1("Problem podczas startu"));
             errorLayout.add(new com.vaadin.flow.component.html.Pre(e.toString()));
             for (StackTraceElement ste : e.getStackTrace()) {
                 errorLayout.add(new com.vaadin.flow.component.html.Div(ste.toString()));

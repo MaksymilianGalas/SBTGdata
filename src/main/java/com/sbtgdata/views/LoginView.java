@@ -32,6 +32,10 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         i18n.getForm().setUsername("Email");
         i18n.getForm().setPassword("Hasło");
         i18n.getForm().setSubmit("Zaloguj się");
+        LoginI18n.ErrorMessage errorMessage = new LoginI18n.ErrorMessage();
+        errorMessage.setTitle("Logowanie nieudane");
+        errorMessage.setMessage("Sprawdź email i hasło, a następnie spróbuj ponownie.");
+        i18n.setErrorMessage(errorMessage);
         login.setI18n(i18n);
         
         Button registerButton = new Button("Rejestracja", e -> {

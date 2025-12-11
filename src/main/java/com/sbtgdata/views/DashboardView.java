@@ -8,20 +8,15 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.PermitAll;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Route(value = "dashboard", layout = MainLayout.class)
-@PageTitle("Dashboard")
+@PageTitle("Panel główny")
 @PermitAll
 public class DashboardView extends VerticalLayout {
     
-    @Autowired
-    private SecurityService securityService;
-    
     public DashboardView(SecurityService securityService) {
-        this.securityService = securityService;
         
-        H1 title = new H1("Dashboard");
+        H1 title = new H1("Panel główny");
         
         User currentUser = securityService.getCurrentUser();
         String welcomeText = "Witaj!";
