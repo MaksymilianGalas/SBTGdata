@@ -15,9 +15,12 @@ public class DataFlow {
 
     private String name;
     private String ownerEmail;
+    private String userId; 
     private Map<String, String> inputSchema;
     private String pythonCode;
+    private String function; 
     private String additionalLibraries;
+    private java.util.List<String> packages; 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -89,5 +92,29 @@ public class DataFlow {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    
+    public String getUserId() {
+        return userId;
+    }
+    
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+    
+    public String getFunction() {
+        return function;
+    }
+    
+    public void setFunction(String function) {
+        this.function = function;
+    }
+    
+    public java.util.List<String> getPackages() {
+        return packages;
+    }
+    
+    public void setPackages(java.util.List<String> packages) {
+        this.packages = packages;
     }
 }

@@ -12,7 +12,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.sbtgdata.config.ErrorEventPublisher;
 
-import java.time.Instant;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -53,6 +54,7 @@ public class UserService {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.setRoles(roles);
+        user.setApiKey(generateApiKey());
 
         User savedUser = userRepository.save(user);
 
@@ -79,6 +81,32 @@ public class UserService {
         return passwordEncoder.matches(password, user.getPassword());
     }
 
+    public String regenerateApiKey(String userId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("Użytkownik nie istnieje");
+        }
+        
+        User user = userOpt.get();
+        String newApiKey = generateApiKey();
+        user.setApiKey(newApiKey);
+        userRepository.save(user);
+        return newApiKey;
+    }
+    
+    public String getApiKey(String userId) {
+        return userRepository.findById(userId)
+                .map(User::getApiKey)
+                .orElse(null);
+    }
+    
+    private String generateApiKey() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
     private void notifyExternal(User user) {
         if (webhookEndpoint == null || webhookEndpoint.isBlank()) {
             throw new IllegalStateException("Brak skonfigurowanego endpointu webhook");
@@ -86,7 +114,6 @@ public class UserService {
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("user_id", user.getId());
-        payload.put("czas_utworzenia_usera", Instant.now().toString());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

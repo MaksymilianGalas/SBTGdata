@@ -3,6 +3,7 @@ package com.sbtgdata.views;
 import com.sbtgdata.data.UserService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.EmailField;
@@ -10,7 +11,6 @@ import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Route("register")
 @PageTitle("Rejestracja")
@@ -23,6 +23,11 @@ public class RegisterView extends VerticalLayout {
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         H1 title = new H1("Rejestracja");
+        Image logo = new Image("/images/sbtgdata_logo.jpg", "Logo Sbtgdata");
+        logo.setMaxWidth("220px");
+        logo.setWidth("60%");
+        logo.setHeight("auto");
+        logo.getStyle().set("max-width", "220px");
 
         EmailField emailField = new EmailField("Email");
         emailField.setWidth("300px");
@@ -66,6 +71,6 @@ public class RegisterView extends VerticalLayout {
             getUI().ifPresent(ui -> ui.navigate("login"));
         });
 
-        add(title, emailField, passwordField, confirmPasswordField, registerButton, loginButton);
+        add(logo, title, emailField, passwordField, confirmPasswordField, registerButton, loginButton);
     }
 }

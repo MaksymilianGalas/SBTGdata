@@ -14,6 +14,7 @@ public class User {
     private String email;
     private String password;
     private Set<String> roles;
+    private String apiKey;
     
     public User() {
     }
@@ -58,6 +59,14 @@ public class User {
     
     public boolean hasRole(String role) {
         return roles != null && roles.contains(role);
+    }
+    
+    public String getApiKey() {
+        return apiKey;
+    }
+    
+    public void setApiKey(String apiKey) {
+        this.apiKey = apiKey;
     }
 }
 
