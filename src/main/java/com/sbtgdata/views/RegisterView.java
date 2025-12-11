@@ -54,7 +54,7 @@ public class RegisterView extends VerticalLayout {
             }
 
             try {
-                userService.registerUser(email, password);
+                userService.registerUser(email, password,        "USER");
                 Notification.show("Rejestracja zakończona pomyślnie", 3000, Notification.Position.MIDDLE);
                 getUI().ifPresent(ui -> ui.navigate("login"));
             } catch (IllegalArgumentException ex) {
