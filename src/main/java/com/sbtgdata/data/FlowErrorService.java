@@ -51,14 +51,18 @@ public class FlowErrorService {
     }
 
     public List<FlowError> getErrorsByUserId(String userId) {
-        List<String> userFlowIds = dataFlowRepository.findAll().stream()
-                .filter(flow -> flow.getUserIdAsString() != null && flow.getUserIdAsString().equals(userId))
-                .map(DataFlow::getId)
-                .collect(Collectors.toList());
+        try {
+            org.bson.types.ObjectId objectId = new org.bson.types.ObjectId(userId);
+            List<String> userFlowIds = dataFlowRepository.findByUserId(objectId).stream()
+                    .map(DataFlow::getId)
+                    .collect(Collectors.toList());
 
-        return flowErrorRepository.findAll().stream()
-                .filter(error -> userFlowIds.contains(error.getFlowId()))
-                .collect(Collectors.toList());
+            return flowErrorRepository.findAll().stream()
+                    .filter(error -> userFlowIds.contains(error.getFlowId()))
+                    .collect(Collectors.toList());
+        } catch (IllegalArgumentException e) {
+            return new ArrayList<>();
+        }
     }
 
     public void deleteError(String errorId) {

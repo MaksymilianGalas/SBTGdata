@@ -42,6 +42,9 @@ public class UserService {
     @Autowired
     private FlowErrorService flowErrorService;
 
+    @Autowired
+    private DataFlowService dataFlowService;
+
     @Value("${external.user.create.webhook.url:}")
     private String userCreateWebhookEndpoint;
 
@@ -118,11 +121,11 @@ public class UserService {
 
         User user = userOpt.get();
 
-        List<DataFlow> userFlows = dataFlowRepository.findByUserId(userId);
+        org.bson.types.ObjectId userObjectId = new org.bson.types.ObjectId(userId);
+        List<DataFlow> userFlows = dataFlowRepository.findByUserId(userObjectId);
         for (DataFlow flow : userFlows) {
-            flowErrorService.deleteAllErrorsByFlowId(flow.getId());
+            dataFlowService.delete(flow);
         }
-        dataFlowRepository.deleteAll(userFlows);
 
         try {
             notifyExternalOnDelete(user);

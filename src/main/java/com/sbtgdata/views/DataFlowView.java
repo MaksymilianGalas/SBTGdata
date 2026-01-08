@@ -6,12 +6,13 @@ import com.sbtgdata.data.DataFlowService;
 import com.sbtgdata.data.FlowError;
 import com.sbtgdata.data.FlowErrorService;
 import com.sbtgdata.data.User;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.icon.Icon;
@@ -27,11 +28,8 @@ import jakarta.annotation.security.PermitAll;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @Route(value = "dataflows", layout = MainLayout.class)
-@PageTitle("Przepływy danych")
+@PageTitle("Moje przepływy danych")
 @PermitAll
 public class DataFlowView extends VerticalLayout {
 
@@ -75,29 +73,47 @@ public class DataFlowView extends VerticalLayout {
             String apiKey = currentUser != null ? currentUser.getApiKey() : "";
             String url = entryDataFlowUrl + "/" + flow.getId() + "?API_KEY=" + apiKey;
 
-            Button copyButton = new Button(new Icon(VaadinIcon.COPY));
-            copyButton.getElement().setAttribute("title", "Kopiuj URL");
-            copyButton.addClickListener(e -> {
-                getUI().ifPresent(ui -> {
-                    ui.getPage().executeJs(
-                            "return navigator.clipboard.writeText($0).then(() => true, () => false)",
-                            url).then(Boolean.class, success -> {
-                                if (Boolean.TRUE.equals(success)) {
-                                    Notification.show("URL skopiowany", 2000, Notification.Position.MIDDLE);
-                                }
-                            });
-                });
+            String flowIdLast4 = flow.getId().length() >= 4
+                    ? flow.getId().substring(flow.getId().length() - 4)
+                    : flow.getId();
+
+            TextField urlField = new TextField();
+            urlField.setValue("..." + flowIdLast4);
+            urlField.setReadOnly(true);
+            urlField.setWidth("120px");
+            urlField.getStyle().set("font-size", "0.875rem");
+
+            Button expandButton = new Button(new Icon(VaadinIcon.EXPAND));
+            expandButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+            expandButton.getElement().setAttribute("title", "Pokaż pełny URL");
+            expandButton.addClickListener(e -> {
+                if (urlField.getValue().startsWith("...")) {
+                    urlField.setValue(url);
+                    urlField.setWidth("100%");
+                    expandButton.setIcon(new Icon(VaadinIcon.COMPRESS));
+                } else {
+                    urlField.setValue("..." + flowIdLast4);
+                    urlField.setWidth("120px");
+                    expandButton.setIcon(new Icon(VaadinIcon.EXPAND));
+                }
             });
 
-            Paragraph urlText = new Paragraph(url);
-            urlText.getStyle().set("font-size", "0.875rem");
-            urlText.getStyle().set("margin", "0");
+            Button copyButton = new Button(new Icon(VaadinIcon.COPY));
+            copyButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+            copyButton.getElement().setAttribute("title", "Kopiuj pełny URL");
+            copyButton.addClickListener(e -> {
+                UI.getCurrent().getPage().executeJs(
+                        "navigator.clipboard.writeText($0).then(() => { window.dispatchEvent(new CustomEvent('clipboard-success')); }, () => { window.dispatchEvent(new CustomEvent('clipboard-error')); });",
+                        url);
+                Notification.show("URL skopiowany", 2000, Notification.Position.MIDDLE);
+            });
 
-            HorizontalLayout layout = new HorizontalLayout(urlText, copyButton);
+            HorizontalLayout layout = new HorizontalLayout(urlField, expandButton, copyButton);
             layout.setAlignItems(Alignment.CENTER);
             layout.setSpacing(false);
+            layout.setPadding(false);
             return layout;
-        }).setHeader("URL do wysyłania danych").setAutoWidth(true);
+        }).setHeader("URL do wysyłania danych").setWidth("350px");
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
@@ -114,7 +130,14 @@ public class DataFlowView extends VerticalLayout {
         }).setHeader("Błędy");
 
         grid.addComponentColumn(flow -> {
+            boolean isRunning = "RUNNING".equals(flow.getStatus());
+
             Button editButton = new Button("Edytuj", e -> openFlowEditor(flow));
+            editButton.setEnabled(!isRunning);
+            if (isRunning) {
+                editButton.getElement().setAttribute("title", "Zatrzymaj przepływ aby edytować");
+            }
+
             Button deleteButton = new Button("Usuń", e -> {
                 try {
                     dataFlowService.delete(flow);
@@ -124,9 +147,13 @@ public class DataFlowView extends VerticalLayout {
                     Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE);
                 }
             });
+            deleteButton.setEnabled(!isRunning);
+            if (isRunning) {
+                deleteButton.getElement().setAttribute("title", "Zatrzymaj przepływ aby usunąć");
+            }
 
             Button toggleButton;
-            if ("RUNNING".equals(flow.getStatus())) {
+            if (isRunning) {
                 toggleButton = new Button("Zatrzymaj przepływ", e -> {
                     try {
                         dataFlowService.stopFlow(flow.getId());
@@ -161,35 +188,30 @@ public class DataFlowView extends VerticalLayout {
 
     private void openFlowEditor(DataFlow flow) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle(flow.getId() == null ? "Nowy przepływ danych" : "Edytuj przepływ");
-        dialog.setWidth("800px");
+        dialog.setHeaderTitle(flow.getId() == null ? "Dodaj nowy przepływ" : "Edytuj przepływ");
+        dialog.setWidth("600px");
 
         VerticalLayout dialogLayout = new VerticalLayout();
 
         TextField nameField = new TextField("Nazwa przepływu");
+        nameField.setValue(flow.getName() != null ? flow.getName() : "");
         nameField.setWidthFull();
-        if (flow.getName() != null) {
-            nameField.setValue(flow.getName());
-        }
 
-        TextArea functionArea = new TextArea("Kod funkcji Python");
+        TextArea functionArea = new TextArea("Funkcja Python");
+        Checkbox hasLibrariesCheckbox = new Checkbox("Dodatkowe biblioteki");
+        TextArea librariesArea = new TextArea("Biblioteki (jedna na linię)");
+
+        functionArea.setValue(flow.getFunction() != null ? flow.getFunction() : "");
         functionArea.setWidthFull();
-        functionArea.setHeight("300px");
-        functionArea.getStyle().set("font-family", "monospace");
-        if (flow.getFunction() != null) {
-            functionArea.setValue(flow.getFunction());
-        }
+        functionArea.setHeight("200px");
 
-        Checkbox hasLibrariesCheckbox = new Checkbox("Mam dodatkowe biblioteki");
-        TextArea librariesArea = new TextArea("Dodatkowe biblioteki (jedna na linię)");
+        hasLibrariesCheckbox.setValue(flow.getPackages() != null && !flow.getPackages().isEmpty());
+        librariesArea.setVisible(hasLibrariesCheckbox.getValue());
         librariesArea.setWidthFull();
         librariesArea.setHeight("100px");
-        librariesArea.setVisible(false);
 
         if (flow.getPackages() != null && !flow.getPackages().isEmpty()) {
-            hasLibrariesCheckbox.setValue(true);
             librariesArea.setValue(String.join("\n", flow.getPackages()));
-            librariesArea.setVisible(true);
         }
 
         hasLibrariesCheckbox.addValueChangeListener(e -> {
@@ -197,96 +219,60 @@ public class DataFlowView extends VerticalLayout {
         });
 
         dialogLayout.add(nameField, functionArea, hasLibrariesCheckbox, librariesArea);
-        dialog.add(dialogLayout);
 
         Button saveButton = new Button("Zapisz", e -> {
-            if (nameField.getValue().isEmpty()) {
-                Notification.show("Nazwa przepływu jest wymagana", 3000, Notification.Position.MIDDLE);
-                return;
-            }
-
             flow.setName(nameField.getValue());
             flow.setFunction(functionArea.getValue());
-            if (hasLibrariesCheckbox.getValue()) {
-                String[] libs = librariesArea.getValue().split("\n");
-                flow.setPackages(java.util.Arrays.asList(libs));
+
+            if (hasLibrariesCheckbox.getValue() && !librariesArea.getValue().trim().isEmpty()) {
+                flow.setPackages(java.util.Arrays.asList(librariesArea.getValue().split("\n")));
             } else {
-                flow.setPackages(null);
+                flow.setPackages(new java.util.ArrayList<>());
             }
 
-            if (flow.getId() == null) {
-                String currentUserEmail = securityService.getAuthenticatedUser().orElse(null);
+            String currentUserEmail = securityService.getAuthenticatedUser().orElse(null);
+            if (currentUserEmail != null) {
                 flow.setOwnerEmail(currentUserEmail);
+                try {
+                    dataFlowService.save(flow);
+                    updateList();
+                    dialog.close();
+                    Notification.show("Przepływ zapisany");
+                } catch (IllegalArgumentException ex) {
+                    Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                }
             }
-
-            dataFlowService.save(flow);
-            updateList();
-            dialog.close();
-            Notification.show("Przepływ zapisany");
         });
 
         Button cancelButton = new Button("Anuluj", e -> dialog.close());
 
+        dialog.add(dialogLayout);
         dialog.getFooter().add(cancelButton, saveButton);
         dialog.open();
     }
 
-    private HorizontalLayout createSchemaField(String varName, String varType, VerticalLayout container) {
-        ComboBox<String> typeCombo = new ComboBox<>("Typ");
-        typeCombo.setItems("int", "float", "string", "boolean", "list", "dict");
-        typeCombo.setValue(varType);
-        typeCombo.setWidth("150px");
-
-        TextField varNameField = new TextField("Nazwa zmiennej");
-        varNameField.setValue(varName);
-        varNameField.setWidth("200px");
-
-        Button removeButton = new Button("Usuń", e -> {
-            container.remove(container.getChildren()
-                    .filter(c -> c instanceof HorizontalLayout && c.equals(e.getSource().getParent().get()))
-                    .findFirst()
-                    .orElse(null));
-        });
-
-        HorizontalLayout fieldLayout = new HorizontalLayout(typeCombo, varNameField, removeButton);
-        fieldLayout.setAlignItems(Alignment.END);
-        return fieldLayout;
-    }
-
     private void openErrorsDialog(DataFlow flow) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Błędy dla przepływu: " + flow.getName());
+        dialog.setHeaderTitle("Błędy przepływu: " + flow.getName());
         dialog.setWidth("800px");
 
         VerticalLayout dialogLayout = new VerticalLayout();
+        Grid<FlowError> errorGrid = new Grid<>(FlowError.class);
+        errorGrid.setColumns();
+        errorGrid.addColumn(error -> {
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                    .ofPattern("yyyy-MM-dd HH:mm:ss");
+            return error.getDate() != null ? error.getDate().format(formatter) : "";
+        }).setHeader("Data");
+        errorGrid.addColumn(FlowError::getMessage).setHeader("Komunikat błędu");
 
-        java.util.List<FlowError> errors = flowErrorService.getUniqueErrorsByFlowId(flow.getId());
+        errorGrid.setItems(flowErrorService.getUniqueErrorsByFlowId(flow.getId()));
 
-        if (errors.isEmpty()) {
-            dialogLayout.add(new Paragraph("Brak błędów dla tego przepływu."));
-        } else {
-            Grid<FlowError> errorsGrid = new Grid<>(FlowError.class);
-            errorsGrid.setColumns("message", "date");
-            errorsGrid.addComponentColumn(error -> {
-                Button acknowledgeButton = new Button("Wiem o tym", e -> {
-                    flowErrorService.deleteError(error.getId());
-                    errorsGrid.setItems(flowErrorService.getErrorsByFlowId(flow.getId()));
-                    updateList();
-                    Notification.show("Błąd został usunięty", 2000, Notification.Position.MIDDLE);
-                    if (flowErrorService.getErrorsByFlowId(flow.getId()).isEmpty()) {
-                        dialog.close();
-                    }
-                });
-                return acknowledgeButton;
-            }).setHeader("Akcja");
-
-            errorsGrid.setItems(errors);
-            dialogLayout.add(errorsGrid);
-        }
-
-        dialog.add(dialogLayout);
+        dialogLayout.add(errorGrid);
 
         Button closeButton = new Button("Zamknij", e -> dialog.close());
+
+        dialog.add(dialogLayout);
         dialog.getFooter().add(closeButton);
         dialog.open();
     }

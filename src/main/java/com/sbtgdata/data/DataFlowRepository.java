@@ -6,5 +6,5 @@ import java.util.List;
 public interface DataFlowRepository extends MongoRepository<DataFlow, String> {
     List<DataFlow> findByOwnerEmail(String ownerEmail);
 
-    List<DataFlow> findByUserId(String userId);
+    List<DataFlow> findByUserId(org.bson.types.ObjectId userId);
 }
