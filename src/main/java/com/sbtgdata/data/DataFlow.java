@@ -1,13 +1,13 @@
 package com.sbtgdata.data;
 
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
-@Document(collection = "dataflows")
+@Document(collection = "flows")
 public class DataFlow {
 
     @Id
@@ -15,17 +15,18 @@ public class DataFlow {
 
     private String name;
     private String ownerEmail;
-    private String userId; 
-    private Map<String, String> inputSchema;
-    private String pythonCode;
-    private String function; 
-    private String additionalLibraries;
-    private java.util.List<String> packages; 
+
+    @Field("user_id")
+    private ObjectId userId;
+
+    private String function;
+    private java.util.List<String> packages;
+    private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public DataFlow() {
-        this.inputSchema = new HashMap<>();
+        this.status = "STOPPED";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -54,28 +55,12 @@ public class DataFlow {
         this.ownerEmail = ownerEmail;
     }
 
-    public Map<String, String> getInputSchema() {
-        return inputSchema;
+    public String getStatus() {
+        return status;
     }
 
-    public void setInputSchema(Map<String, String> inputSchema) {
-        this.inputSchema = inputSchema;
-    }
-
-    public String getPythonCode() {
-        return pythonCode;
-    }
-
-    public void setPythonCode(String pythonCode) {
-        this.pythonCode = pythonCode;
-    }
-
-    public String getAdditionalLibraries() {
-        return additionalLibraries;
-    }
-
-    public void setAdditionalLibraries(String additionalLibraries) {
-        this.additionalLibraries = additionalLibraries;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -93,27 +78,37 @@ public class DataFlow {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
-    
-    public String getUserId() {
+
+    public ObjectId getUserId() {
         return userId;
     }
-    
-    public void setUserId(String userId) {
+
+    public void setUserId(ObjectId userId) {
         this.userId = userId;
     }
-    
+
+    public void setUserIdFromString(String userIdString) {
+        if (userIdString != null && !userIdString.isEmpty()) {
+            this.userId = new ObjectId(userIdString);
+        }
+    }
+
+    public String getUserIdAsString() {
+        return userId != null ? userId.toHexString() : null;
+    }
+
     public String getFunction() {
         return function;
     }
-    
+
     public void setFunction(String function) {
         this.function = function;
     }
-    
+
     public java.util.List<String> getPackages() {
         return packages;
     }
-    
+
     public void setPackages(java.util.List<String> packages) {
         this.packages = packages;
     }

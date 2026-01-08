@@ -47,7 +47,7 @@ class UserServiceTest {
 
     @Test
     void testRegisterUser_GeneratesApiKey() {
-        // Given
+
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-password");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -58,10 +58,8 @@ class UserServiceTest {
         when(restTemplate.postForEntity(anyString(), any(), any(Class.class)))
                 .thenReturn(org.springframework.http.ResponseEntity.ok("OK"));
 
-        // When
         User result = userService.registerUser("test@example.com", "password", "USER");
 
-        // Then
         assertNotNull(result);
         assertNotNull(result.getApiKey());
         assertFalse(result.getApiKey().isEmpty());
@@ -70,14 +68,12 @@ class UserServiceTest {
 
     @Test
     void testRegenerateApiKey() {
-        // Given
+
         when(userRepository.findById("test-user-id")).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenReturn(testUser);
 
-        // When
         String newApiKey = userService.regenerateApiKey("test-user-id");
 
-        // Then
         assertNotNull(newApiKey);
         assertFalse(newApiKey.isEmpty());
         verify(userRepository, times(1)).save(testUser);
@@ -85,10 +81,9 @@ class UserServiceTest {
 
     @Test
     void testRegenerateApiKey_UserNotFound() {
-        // Given
+
         when(userRepository.findById("non-existent")).thenReturn(Optional.empty());
 
-        // When/Then
         assertThrows(IllegalArgumentException.class, () -> {
             userService.regenerateApiKey("non-existent");
         });
@@ -96,15 +91,12 @@ class UserServiceTest {
 
     @Test
     void testGetApiKey() {
-        // Given
+
         testUser.setApiKey("test-api-key");
         when(userRepository.findById("test-user-id")).thenReturn(Optional.of(testUser));
 
-        // When
         String apiKey = userService.getApiKey("test-user-id");
 
-        // Then
         assertEquals("test-api-key", apiKey);
     }
 }
-

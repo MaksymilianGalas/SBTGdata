@@ -5,15 +5,11 @@ import com.sbtgdata.data.DataFlow;
 import com.sbtgdata.data.DataFlowService;
 import com.sbtgdata.data.FlowError;
 import com.sbtgdata.data.FlowErrorService;
-import com.sbtgdata.data.User;
-import com.sbtgdata.data.UserService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
-import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.icon.Icon;
@@ -38,16 +34,14 @@ public class DataFlowView extends VerticalLayout {
 
     private final DataFlowService dataFlowService;
     private final SecurityService securityService;
-    private final UserService userService;
     private final FlowErrorService flowErrorService;
     private final Grid<DataFlow> grid = new Grid<>(DataFlow.class);
 
     @Autowired
     public DataFlowView(DataFlowService dataFlowService, SecurityService securityService,
-            UserService userService, FlowErrorService flowErrorService) {
+            FlowErrorService flowErrorService) {
         this.dataFlowService = dataFlowService;
         this.securityService = securityService;
-        this.userService = userService;
         this.flowErrorService = flowErrorService;
 
         setSizeFull();
@@ -61,16 +55,17 @@ public class DataFlowView extends VerticalLayout {
 
     private void configureGrid() {
         grid.setColumns("name");
-        grid.addColumn(flow -> flow.getInputSchema().size() + " pól wejściowych").setHeader("Schemat");
-        grid.addColumn(flow -> flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty() ? "Tak"
+        grid.addColumn(flow -> flow.getPackages() != null && !flow.getPackages().isEmpty() ? "Tak"
                 : "Nie")
                 .setHeader("Dodatkowe biblioteki");
+
+        grid.addColumn(DataFlow::getStatus).setHeader("Status");
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
                 return new Paragraph("-");
             }
-            long errorCount = flowErrorService.getErrorsByFlowId(flow.getId()).size();
+            long errorCount = flowErrorService.getUniqueErrorsByFlowId(flow.getId()).size();
             if (errorCount > 0) {
                 Button errorsButton = new Button("Błędy (" + errorCount + ")",
                         new Icon(VaadinIcon.EXCLAMATION_CIRCLE_O));
@@ -79,25 +74,6 @@ public class DataFlowView extends VerticalLayout {
             }
             return new Paragraph("Brak błędów");
         }).setHeader("Błędy");
-
-        grid.addComponentColumn(flow -> {
-            User currentUser = securityService.getCurrentUser();
-            if (currentUser == null) {
-                return new Paragraph("Brak dostępu");
-            }
-            String apiKey = userService.getApiKey(currentUser.getId());
-            if (apiKey == null || apiKey.isEmpty()) {
-                return new Paragraph("Brak klucza API");
-            }
-            try {
-                String flowUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, null, null);
-                Anchor urlLink = new Anchor(flowUrl, flowUrl);
-                urlLink.setTarget("_blank");
-                return urlLink;
-            } catch (IllegalStateException ex) {
-                return new Paragraph("URL nie skonfigurowany");
-            }
-        }).setHeader("URL pobierania danych");
 
         grid.addComponentColumn(flow -> {
             Button editButton = new Button("Edytuj", e -> openFlowEditor(flow));
@@ -110,8 +86,31 @@ public class DataFlowView extends VerticalLayout {
                     Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE);
                 }
             });
-            Button retrieveButton = new Button("Pobierz dane", e -> openDataRetrievalDialog(flow));
-            return new HorizontalLayout(editButton, deleteButton, retrieveButton);
+
+            Button toggleButton;
+            if ("RUNNING".equals(flow.getStatus())) {
+                toggleButton = new Button("Zatrzymaj przepływ", e -> {
+                    try {
+                        dataFlowService.stopFlow(flow.getId());
+                        updateList();
+                        Notification.show("Przepływ zatrzymany");
+                    } catch (Exception ex) {
+                        Notification.show("Błąd: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                    }
+                });
+            } else {
+                toggleButton = new Button("Uruchom przepływ", e -> {
+                    try {
+                        dataFlowService.startFlow(flow.getId());
+                        updateList();
+                        Notification.show("Przepływ uruchomiony");
+                    } catch (Exception ex) {
+                        Notification.show("Błąd: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                    }
+                });
+            }
+
+            return new HorizontalLayout(editButton, deleteButton, toggleButton);
         }).setHeader("Akcje");
     }
 
@@ -135,29 +134,12 @@ public class DataFlowView extends VerticalLayout {
             nameField.setValue(flow.getName());
         }
 
-        VerticalLayout schemaLayout = new VerticalLayout();
-        schemaLayout.add(new H2("Schemat danych wejściowych"));
-
-        VerticalLayout schemaFieldsContainer = new VerticalLayout();
-
-        if (flow.getInputSchema() != null && !flow.getInputSchema().isEmpty()) {
-            flow.getInputSchema().forEach((varName, varType) -> {
-                schemaFieldsContainer.add(createSchemaField(varName, varType, schemaFieldsContainer));
-            });
-        }
-
-        Button addSchemaFieldButton = new Button("Dodaj pole", e -> {
-            schemaFieldsContainer.add(createSchemaField("", "int", schemaFieldsContainer));
-        });
-
-        schemaLayout.add(schemaFieldsContainer, addSchemaFieldButton);
-
-        TextArea pythonCodeArea = new TextArea("Kod funkcji Python");
-        pythonCodeArea.setWidthFull();
-        pythonCodeArea.setHeight("300px");
-        pythonCodeArea.getStyle().set("font-family", "monospace");
-        if (flow.getPythonCode() != null) {
-            pythonCodeArea.setValue(flow.getPythonCode());
+        TextArea functionArea = new TextArea("Kod funkcji Python");
+        functionArea.setWidthFull();
+        functionArea.setHeight("300px");
+        functionArea.getStyle().set("font-family", "monospace");
+        if (flow.getFunction() != null) {
+            functionArea.setValue(flow.getFunction());
         }
 
         Checkbox hasLibrariesCheckbox = new Checkbox("Mam dodatkowe biblioteki");
@@ -166,9 +148,9 @@ public class DataFlowView extends VerticalLayout {
         librariesArea.setHeight("100px");
         librariesArea.setVisible(false);
 
-        if (flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty()) {
+        if (flow.getPackages() != null && !flow.getPackages().isEmpty()) {
             hasLibrariesCheckbox.setValue(true);
-            librariesArea.setValue(flow.getAdditionalLibraries());
+            librariesArea.setValue(String.join("\n", flow.getPackages()));
             librariesArea.setVisible(true);
         }
 
@@ -176,7 +158,7 @@ public class DataFlowView extends VerticalLayout {
             librariesArea.setVisible(e.getValue());
         });
 
-        dialogLayout.add(nameField, schemaLayout, pythonCodeArea, hasLibrariesCheckbox, librariesArea);
+        dialogLayout.add(nameField, functionArea, hasLibrariesCheckbox, librariesArea);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Zapisz", e -> {
@@ -185,25 +167,14 @@ public class DataFlowView extends VerticalLayout {
                 return;
             }
 
-            Map<String, String> schema = new HashMap<>();
-            schemaFieldsContainer.getChildren().forEach(component -> {
-                if (component instanceof HorizontalLayout) {
-                    HorizontalLayout fieldLayout = (HorizontalLayout) component;
-                    var first = fieldLayout.getComponentAt(0);
-                    var second = fieldLayout.getComponentAt(1);
-                    if (first instanceof ComboBox<?> combo && second instanceof TextField varNameField) {
-                        Object value = combo.getValue();
-                        if (value instanceof String type && !varNameField.getValue().isEmpty()) {
-                            schema.put(varNameField.getValue(), type);
-                        }
-                    }
-                }
-            });
-
             flow.setName(nameField.getValue());
-            flow.setInputSchema(schema);
-            flow.setPythonCode(pythonCodeArea.getValue());
-            flow.setAdditionalLibraries(hasLibrariesCheckbox.getValue() ? librariesArea.getValue() : null);
+            flow.setFunction(functionArea.getValue());
+            if (hasLibrariesCheckbox.getValue()) {
+                String[] libs = librariesArea.getValue().split("\n");
+                flow.setPackages(java.util.Arrays.asList(libs));
+            } else {
+                flow.setPackages(null);
+            }
 
             if (flow.getId() == null) {
                 String currentUserEmail = securityService.getAuthenticatedUser().orElse(null);
@@ -244,87 +215,6 @@ public class DataFlowView extends VerticalLayout {
         return fieldLayout;
     }
 
-    private void openDataRetrievalDialog(DataFlow flow) {
-        Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Pobierz dane dla przepływu: " + flow.getName());
-        dialog.setWidth("500px");
-
-        VerticalLayout dialogLayout = new VerticalLayout();
-
-        Checkbox allDataCheckbox = new Checkbox("Pobierz wszystkie dane");
-        allDataCheckbox.setValue(true);
-
-        DatePicker startDatePicker = new DatePicker("Data początkowa");
-        startDatePicker.setWidthFull();
-        startDatePicker.setVisible(false);
-
-        DatePicker endDatePicker = new DatePicker("Data końcowa");
-        endDatePicker.setWidthFull();
-        endDatePicker.setVisible(false);
-
-        allDataCheckbox.addValueChangeListener(e -> {
-            boolean showDates = !e.getValue();
-            startDatePicker.setVisible(showDates);
-            endDatePicker.setVisible(showDates);
-        });
-
-        Button redirectButton = new Button("Przejdź do danych", e -> {
-            User currentUser = securityService.getCurrentUser();
-            if (currentUser == null) {
-                Notification.show("Brak dostępu", 3000, Notification.Position.MIDDLE);
-                return;
-            }
-
-            String apiKey = userService.getApiKey(currentUser.getId());
-            if (apiKey == null || apiKey.isEmpty()) {
-                Notification.show("Brak klucza API", 3000, Notification.Position.MIDDLE);
-                return;
-            }
-
-            if (!allDataCheckbox.getValue()) {
-                if (startDatePicker.getValue() == null || endDatePicker.getValue() == null) {
-                    Notification.show("Proszę wybrać obie daty", 3000, Notification.Position.MIDDLE);
-                    return;
-                }
-
-                if (startDatePicker.getValue().isAfter(endDatePicker.getValue())) {
-                    Notification.show("Data początkowa nie może być późniejsza niż końcowa", 3000,
-                            Notification.Position.MIDDLE);
-                    return;
-                }
-            }
-
-            try {
-                String redirectUrl;
-                if (allDataCheckbox.getValue()) {
-                    redirectUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, null, null);
-                } else {
-                    java.time.LocalDateTime startDateTime = startDatePicker.getValue().atStartOfDay();
-                    java.time.LocalDateTime endDateTime = endDatePicker.getValue().atTime(23, 59, 59);
-                    redirectUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, startDateTime, endDateTime);
-                }
-
-                getUI().ifPresent(ui -> {
-                    ui.getPage().open(redirectUrl, "_blank");
-                });
-
-                dialog.close();
-            } catch (IllegalStateException ex) {
-                Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE);
-            } catch (Exception ex) {
-                Notification.show("Błąd podczas generowania URL: " + ex.getMessage(), 5000,
-                        Notification.Position.MIDDLE);
-            }
-        });
-
-        Button cancelButton = new Button("Anuluj", ev -> dialog.close());
-
-        dialogLayout.add(allDataCheckbox, startDatePicker, endDatePicker);
-        dialog.add(dialogLayout);
-        dialog.getFooter().add(cancelButton, redirectButton);
-        dialog.open();
-    }
-
     private void openErrorsDialog(DataFlow flow) {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Błędy dla przepływu: " + flow.getName());
@@ -332,7 +222,7 @@ public class DataFlowView extends VerticalLayout {
 
         VerticalLayout dialogLayout = new VerticalLayout();
 
-        java.util.List<FlowError> errors = flowErrorService.getErrorsByFlowId(flow.getId());
+        java.util.List<FlowError> errors = flowErrorService.getUniqueErrorsByFlowId(flow.getId());
 
         if (errors.isEmpty()) {
             dialogLayout.add(new Paragraph("Brak błędów dla tego przepływu."));

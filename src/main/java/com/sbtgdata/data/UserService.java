@@ -16,6 +16,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,17 +39,14 @@ public class UserService {
     @Autowired
     private DataFlowRepository dataFlowRepository;
 
-    @Value("${webhook.user.create:}")
+    @Autowired
+    private FlowErrorService flowErrorService;
+
+    @Value("${external.user.create.webhook.url:}")
     private String userCreateWebhookEndpoint;
 
-    @Value("${webhook.user.delete:}")
+    @Value("${external.user.delete.webhook.url:}")
     private String userDeleteWebhookEndpoint;
-
-    @Value("${webhook.flow.delete.endpoint1:}")
-    private String flowDeleteEndpoint1;
-
-    @Value("${webhook.flow.delete.endpoint2:}")
-    private String flowDeleteEndpoint2;
 
     public Optional<User> findByEmail(String email) {
         return userRepository.findByEmail(email);
@@ -71,7 +69,7 @@ public class UserService {
         User savedUser = userRepository.save(user);
 
         try {
-            notifyExternal(savedUser);
+            notifyExternalOnCreate(savedUser);
         } catch (RuntimeException ex) {
             if (savedUser.getId() != null) {
                 userRepository.deleteById(savedUser.getId());
@@ -112,13 +110,6 @@ public class UserService {
                 .orElse(null);
     }
 
-    private String generateApiKey() {
-        SecureRandom random = new SecureRandom();
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
     public void deleteUser(String userId) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) {
@@ -127,98 +118,36 @@ public class UserService {
 
         User user = userOpt.get();
 
-        // Pobierz wszystkie flow użytkownika
-        java.util.List<DataFlow> userFlows = dataFlowRepository.findByUserId(userId);
-
-        // Usuń wszystkie flow użytkownika (każde usunięcie wywoła webhooks)
+        List<DataFlow> userFlows = dataFlowRepository.findByUserId(userId);
         for (DataFlow flow : userFlows) {
-            try {
-                notifyExternalOnFlowDelete(flow);
-            } catch (RuntimeException ex) {
-                errorEventPublisher.publish(null, flow.getId(), userId, ex.getMessage());
-                throw new IllegalArgumentException("Usunięcie przepływu nieudane: " + ex.getMessage());
-            }
-            dataFlowRepository.delete(flow);
+            flowErrorService.deleteAllErrorsByFlowId(flow.getId());
         }
+        dataFlowRepository.deleteAll(userFlows);
 
-        // Usuń użytkownika z bazy
-        userRepository.deleteById(userId);
-
-        // Wyślij webhook usunięcia użytkownika
         try {
-            notifyExternalOnUserDelete(user);
+            notifyExternalOnDelete(user);
         } catch (RuntimeException ex) {
             errorEventPublisher.publish(null, null, userId, ex.getMessage());
-            // Użytkownik już został usunięty, więc tylko logujemy błąd
-        }
-    }
-
-    private void notifyExternalOnUserDelete(User user) {
-        if (userDeleteWebhookEndpoint == null || userDeleteWebhookEndpoint.isBlank()) {
-            return; // Webhook opcjonalny
         }
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("user_id", user.getId());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(userDeleteWebhookEndpoint, request, String.class);
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new IllegalStateException("Endpoint zwrócił status " + response.getStatusCode());
-        }
+        userRepository.deleteById(userId);
     }
 
-    private void notifyExternalOnFlowDelete(DataFlow flow) {
-        String userId = flow.getUserId();
-
-        // Pobierz oba endpointy z application.properties
-        String endpoint1 = getFlowDeleteEndpoint1();
-        String endpoint2 = getFlowDeleteEndpoint2();
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("user_id", userId);
-        payload.put("flow_id", flow.getId());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-
-        // Wyślij do pierwszego endpointu
-        if (endpoint1 != null && !endpoint1.isBlank()) {
-            ResponseEntity<String> response1 = restTemplate.postForEntity(endpoint1, request, String.class);
-            if (!response1.getStatusCode().is2xxSuccessful()) {
-                throw new IllegalStateException("Endpoint 1 zwrócił status " + response1.getStatusCode());
-            }
-        }
-
-        // Wyślij do drugiego endpointu
-        if (endpoint2 != null && !endpoint2.isBlank()) {
-            ResponseEntity<String> response2 = restTemplate.postForEntity(endpoint2, request, String.class);
-            if (!response2.getStatusCode().is2xxSuccessful()) {
-                throw new IllegalStateException("Endpoint 2 zwrócił status " + response2.getStatusCode());
-            }
-        }
+    private String generateApiKey() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    private String getFlowDeleteEndpoint1() {
-        return flowDeleteEndpoint1;
-    }
-
-    private String getFlowDeleteEndpoint2() {
-        return flowDeleteEndpoint2;
-    }
-
-    private void notifyExternal(User user) {
+    private void notifyExternalOnCreate(User user) {
         if (userCreateWebhookEndpoint == null || userCreateWebhookEndpoint.isBlank()) {
             throw new IllegalStateException("Brak skonfigurowanego endpointu webhook");
         }
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("user_id", user.getId());
+        payload.put("API_KEY", user.getApiKey());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -229,5 +158,20 @@ public class UserService {
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("Endpoint zwrócił status " + response.getStatusCode());
         }
+    }
+
+    private void notifyExternalOnDelete(User user) {
+        if (userDeleteWebhookEndpoint == null || userDeleteWebhookEndpoint.isBlank()) {
+            return;
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("user_id", user.getId());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+        restTemplate.postForEntity(userDeleteWebhookEndpoint, request, String.class);
     }
 }

@@ -12,7 +12,7 @@ import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
 import org.springframework.beans.factory.annotation.Autowired;
 
-@Route(value = "test2", layout = MainLayout.class)
+// @Route(value = "test2", layout = MainLayout.class)
 @PageTitle("Widok Testowy 2")
 @RolesAllowed("ADMIN")
 public class TestView2 extends VerticalLayout implements BeforeEnterObserver {

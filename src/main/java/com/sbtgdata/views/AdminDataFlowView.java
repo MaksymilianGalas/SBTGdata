@@ -60,8 +60,7 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
 
     private void configureGrid() {
         grid.setColumns("name", "ownerEmail");
-        grid.addColumn(flow -> flow.getInputSchema().size() + " pól").setHeader("Schemat");
-        grid.addColumn(flow -> flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty() ? "Tak"
+        grid.addColumn(flow -> flow.getPackages() != null && !flow.getPackages().isEmpty() ? "Tak"
                 : "Nie")
                 .setHeader("Dodatkowe biblioteki");
 
@@ -96,30 +95,18 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
 
         VerticalLayout dialogLayout = new VerticalLayout();
 
-        dialogLayout.add(new H3("Właściciel: " + flow.getOwnerEmail()));
-
-        VerticalLayout schemaLayout = new VerticalLayout();
-        schemaLayout.add(new H3("Schemat danych wejściowych:"));
-        if (flow.getInputSchema() != null && !flow.getInputSchema().isEmpty()) {
-            flow.getInputSchema().forEach((varName, varType) -> {
-                schemaLayout.add(new com.vaadin.flow.component.html.Div(varType + " " + varName));
-            });
-        } else {
-            schemaLayout.add(new com.vaadin.flow.component.html.Div("Brak zdefiniowanego schematu"));
-        }
-
         VerticalLayout codeLayout = new VerticalLayout();
         codeLayout.add(new H3("Kod Python:"));
-        Pre codeBlock = new Pre(flow.getPythonCode() != null ? flow.getPythonCode() : "Brak kodu");
+        Pre codeBlock = new Pre(flow.getFunction() != null ? flow.getFunction() : "Brak kodu");
         codeBlock.getStyle().set("background-color", "#f5f5f5");
         codeBlock.getStyle().set("padding", "10px");
         codeBlock.getStyle().set("border-radius", "5px");
         codeLayout.add(codeBlock);
 
-        if (flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty()) {
+        if (flow.getPackages() != null && !flow.getPackages().isEmpty()) {
             VerticalLayout libsLayout = new VerticalLayout();
             libsLayout.add(new H3("Dodatkowe biblioteki:"));
-            Pre libsBlock = new Pre(flow.getAdditionalLibraries());
+            Pre libsBlock = new Pre(String.join("\n", flow.getPackages()));
             libsBlock.getStyle().set("background-color", "#f5f5f5");
             libsBlock.getStyle().set("padding", "10px");
             libsBlock.getStyle().set("border-radius", "5px");
@@ -127,7 +114,7 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
             dialogLayout.add(libsLayout);
         }
 
-        dialogLayout.add(schemaLayout, codeLayout);
+        dialogLayout.add(codeLayout);
         dialog.add(dialogLayout);
 
         Button closeButton = new Button("Zamknij", e -> dialog.close());
