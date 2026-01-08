@@ -26,7 +26,7 @@ public class DataFlow {
     private LocalDateTime updatedAt;
 
     public DataFlow() {
-        this.status = "STOPPED";
+        this.status = "RUNNING";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }

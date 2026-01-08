@@ -5,11 +5,13 @@ import com.sbtgdata.data.DataFlow;
 import com.sbtgdata.data.DataFlowService;
 import com.sbtgdata.data.FlowError;
 import com.sbtgdata.data.FlowErrorService;
+import com.sbtgdata.data.User;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.icon.Icon;
@@ -23,6 +25,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +39,9 @@ public class DataFlowView extends VerticalLayout {
     private final SecurityService securityService;
     private final FlowErrorService flowErrorService;
     private final Grid<DataFlow> grid = new Grid<>(DataFlow.class);
+
+    @Value("${entry.data.flow.url}")
+    private String entryDataFlowUrl;
 
     @Autowired
     public DataFlowView(DataFlowService dataFlowService, SecurityService securityService,
@@ -60,6 +66,38 @@ public class DataFlowView extends VerticalLayout {
                 .setHeader("Dodatkowe biblioteki");
 
         grid.addColumn(DataFlow::getStatus).setHeader("Status");
+
+        grid.addComponentColumn(flow -> {
+            if (flow.getId() == null) {
+                return new Paragraph("-");
+            }
+            User currentUser = securityService.getCurrentUser();
+            String apiKey = currentUser != null ? currentUser.getApiKey() : "";
+            String url = entryDataFlowUrl + "/" + flow.getId() + "?API_KEY=" + apiKey;
+
+            Button copyButton = new Button(new Icon(VaadinIcon.COPY));
+            copyButton.getElement().setAttribute("title", "Kopiuj URL");
+            copyButton.addClickListener(e -> {
+                getUI().ifPresent(ui -> {
+                    ui.getPage().executeJs(
+                            "return navigator.clipboard.writeText($0).then(() => true, () => false)",
+                            url).then(Boolean.class, success -> {
+                                if (Boolean.TRUE.equals(success)) {
+                                    Notification.show("URL skopiowany", 2000, Notification.Position.MIDDLE);
+                                }
+                            });
+                });
+            });
+
+            Paragraph urlText = new Paragraph(url);
+            urlText.getStyle().set("font-size", "0.875rem");
+            urlText.getStyle().set("margin", "0");
+
+            HorizontalLayout layout = new HorizontalLayout(urlText, copyButton);
+            layout.setAlignItems(Alignment.CENTER);
+            layout.setSpacing(false);
+            return layout;
+        }).setHeader("URL do wysyłania danych").setAutoWidth(true);
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
