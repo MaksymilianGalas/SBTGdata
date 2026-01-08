@@ -28,8 +28,6 @@ import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -45,8 +43,8 @@ public class DataFlowView extends VerticalLayout {
     private final Grid<DataFlow> grid = new Grid<>(DataFlow.class);
 
     @Autowired
-    public DataFlowView(DataFlowService dataFlowService, SecurityService securityService, 
-                       UserService userService, FlowErrorService flowErrorService) {
+    public DataFlowView(DataFlowService dataFlowService, SecurityService securityService,
+            UserService userService, FlowErrorService flowErrorService) {
         this.dataFlowService = dataFlowService;
         this.securityService = securityService;
         this.userService = userService;
@@ -67,21 +65,21 @@ public class DataFlowView extends VerticalLayout {
         grid.addColumn(flow -> flow.getAdditionalLibraries() != null && !flow.getAdditionalLibraries().isEmpty() ? "Tak"
                 : "Nie")
                 .setHeader("Dodatkowe biblioteki");
-        
+
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
                 return new Paragraph("-");
             }
             long errorCount = flowErrorService.getErrorsByFlowId(flow.getId()).size();
             if (errorCount > 0) {
-                Button errorsButton = new Button("Błędy (" + errorCount + ")", 
-                    new Icon(VaadinIcon.EXCLAMATION_CIRCLE_O));
+                Button errorsButton = new Button("Błędy (" + errorCount + ")",
+                        new Icon(VaadinIcon.EXCLAMATION_CIRCLE_O));
                 errorsButton.addClickListener(e -> openErrorsDialog(flow));
                 return errorsButton;
             }
             return new Paragraph("Brak błędów");
         }).setHeader("Błędy");
-        
+
         grid.addComponentColumn(flow -> {
             User currentUser = securityService.getCurrentUser();
             if (currentUser == null) {
@@ -91,14 +89,15 @@ public class DataFlowView extends VerticalLayout {
             if (apiKey == null || apiKey.isEmpty()) {
                 return new Paragraph("Brak klucza API");
             }
-            String flowUrl = dataFlowService.getFlowUrl(flow.getId(), apiKey);
-            if (flowUrl.isEmpty()) {
+            try {
+                String flowUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, null, null);
+                Anchor urlLink = new Anchor(flowUrl, flowUrl);
+                urlLink.setTarget("_blank");
+                return urlLink;
+            } catch (IllegalStateException ex) {
                 return new Paragraph("URL nie skonfigurowany");
             }
-            Anchor urlLink = new Anchor(flowUrl, flowUrl);
-            urlLink.setTarget("_blank");
-            return urlLink;
-        }).setHeader("URL przepływu");
+        }).setHeader("URL pobierania danych");
 
         grid.addComponentColumn(flow -> {
             Button editButton = new Button("Edytuj", e -> openFlowEditor(flow));
@@ -244,78 +243,97 @@ public class DataFlowView extends VerticalLayout {
         fieldLayout.setAlignItems(Alignment.END);
         return fieldLayout;
     }
-    
+
     private void openDataRetrievalDialog(DataFlow flow) {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Pobierz dane dla przepływu: " + flow.getName());
         dialog.setWidth("500px");
-        
+
         VerticalLayout dialogLayout = new VerticalLayout();
-        
+
+        Checkbox allDataCheckbox = new Checkbox("Pobierz wszystkie dane");
+        allDataCheckbox.setValue(true);
+
         DatePicker startDatePicker = new DatePicker("Data początkowa");
         startDatePicker.setWidthFull();
-        
+        startDatePicker.setVisible(false);
+
         DatePicker endDatePicker = new DatePicker("Data końcowa");
         endDatePicker.setWidthFull();
-        
-        Button downloadButton = new Button("Pobierz CSV", e -> {
-            if (startDatePicker.getValue() == null || endDatePicker.getValue() == null) {
-                Notification.show("Proszę wybrać obie daty", 3000, Notification.Position.MIDDLE);
+        endDatePicker.setVisible(false);
+
+        allDataCheckbox.addValueChangeListener(e -> {
+            boolean showDates = !e.getValue();
+            startDatePicker.setVisible(showDates);
+            endDatePicker.setVisible(showDates);
+        });
+
+        Button redirectButton = new Button("Przejdź do danych", e -> {
+            User currentUser = securityService.getCurrentUser();
+            if (currentUser == null) {
+                Notification.show("Brak dostępu", 3000, Notification.Position.MIDDLE);
                 return;
             }
-            
-            if (startDatePicker.getValue().isAfter(endDatePicker.getValue())) {
-                Notification.show("Data początkowa nie może być późniejsza niż końcowa", 3000, Notification.Position.MIDDLE);
+
+            String apiKey = userService.getApiKey(currentUser.getId());
+            if (apiKey == null || apiKey.isEmpty()) {
+                Notification.show("Brak klucza API", 3000, Notification.Position.MIDDLE);
                 return;
             }
-            
+
+            if (!allDataCheckbox.getValue()) {
+                if (startDatePicker.getValue() == null || endDatePicker.getValue() == null) {
+                    Notification.show("Proszę wybrać obie daty", 3000, Notification.Position.MIDDLE);
+                    return;
+                }
+
+                if (startDatePicker.getValue().isAfter(endDatePicker.getValue())) {
+                    Notification.show("Data początkowa nie może być późniejsza niż końcowa", 3000,
+                            Notification.Position.MIDDLE);
+                    return;
+                }
+            }
+
             try {
-                long startTimestamp = startDatePicker.getValue().atStartOfDay(ZoneId.systemDefault()).toInstant().getEpochSecond();
-                long endTimestamp = endDatePicker.getValue().atStartOfDay(ZoneId.systemDefault()).toInstant().getEpochSecond();
-                
-                byte[] csvData = dataFlowService.retrieveData(flow.getId(), startTimestamp, endTimestamp);
-                
+                String redirectUrl;
+                if (allDataCheckbox.getValue()) {
+                    redirectUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, null, null);
+                } else {
+                    java.time.LocalDateTime startDateTime = startDatePicker.getValue().atStartOfDay();
+                    java.time.LocalDateTime endDateTime = endDatePicker.getValue().atTime(23, 59, 59);
+                    redirectUrl = dataFlowService.getDataRetrievalUrl(flow.getId(), apiKey, startDateTime, endDateTime);
+                }
+
                 getUI().ifPresent(ui -> {
-                    String fileName = "flow_" + flow.getId() + "_" + Instant.now().getEpochSecond() + ".csv";
-                    ui.getPage().executeJs(
-                        "var blob = new Blob([$0], {type: 'text/csv'});" +
-                        "var url = window.URL.createObjectURL(blob);" +
-                        "var a = document.createElement('a');" +
-                        "a.href = url;" +
-                        "a.download = $1;" +
-                        "document.body.appendChild(a);" +
-                        "a.click();" +
-                        "document.body.removeChild(a);" +
-                        "window.URL.revokeObjectURL(url);",
-                        csvData, fileName);
+                    ui.getPage().open(redirectUrl, "_blank");
                 });
-                
-                Notification.show("Pobieranie rozpoczęte", 2000, Notification.Position.MIDDLE);
+
                 dialog.close();
             } catch (IllegalStateException ex) {
                 Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE);
             } catch (Exception ex) {
-                Notification.show("Błąd podczas pobierania danych: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                Notification.show("Błąd podczas generowania URL: " + ex.getMessage(), 5000,
+                        Notification.Position.MIDDLE);
             }
         });
-        
+
         Button cancelButton = new Button("Anuluj", ev -> dialog.close());
-        
-        dialogLayout.add(startDatePicker, endDatePicker);
+
+        dialogLayout.add(allDataCheckbox, startDatePicker, endDatePicker);
         dialog.add(dialogLayout);
-        dialog.getFooter().add(cancelButton, downloadButton);
+        dialog.getFooter().add(cancelButton, redirectButton);
         dialog.open();
     }
-    
+
     private void openErrorsDialog(DataFlow flow) {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Błędy dla przepływu: " + flow.getName());
         dialog.setWidth("800px");
-        
+
         VerticalLayout dialogLayout = new VerticalLayout();
-        
+
         java.util.List<FlowError> errors = flowErrorService.getErrorsByFlowId(flow.getId());
-        
+
         if (errors.isEmpty()) {
             dialogLayout.add(new Paragraph("Brak błędów dla tego przepływu."));
         } else {
@@ -333,13 +351,13 @@ public class DataFlowView extends VerticalLayout {
                 });
                 return acknowledgeButton;
             }).setHeader("Akcja");
-            
+
             errorsGrid.setItems(errors);
             dialogLayout.add(errorsGrid);
         }
-        
+
         dialog.add(dialogLayout);
-        
+
         Button closeButton = new Button("Zamknij", e -> dialog.close());
         dialog.getFooter().add(closeButton);
         dialog.open();

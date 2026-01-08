@@ -43,14 +43,13 @@ class DataFlowServiceTest {
         testFlow.setId("test-flow-id");
         testFlow.setName("Test Flow");
         testFlow.setOwnerEmail("test@example.com");
-        
+
         testUser = new User();
         testUser.setId("test-user-id");
         testUser.setEmail("test@example.com");
-        
-        ReflectionTestUtils.setField(dataFlowService, "flowWebhookEndpoint", "http://test-webhook1.com");
-        ReflectionTestUtils.setField(dataFlowService, "flowWebhookEndpoint2", "http://test-webhook2.com");
-        ReflectionTestUtils.setField(dataFlowService, "flowBaseUrl", "http://test-base.com");
+
+        ReflectionTestUtils.setField(dataFlowService, "flowCreateWebhookEndpoint", "http://test-webhook.com");
+        ReflectionTestUtils.setField(dataFlowService, "dataBaseUrl", "http://test-base.com");
     }
 
     @Test
@@ -66,26 +65,27 @@ class DataFlowServiceTest {
 
         // Then
         assertNotNull(result);
-        verify(restTemplate, times(2)).postForEntity(anyString(), any(), any(Class.class));
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(), any(Class.class));
     }
 
     @Test
-    void testGetFlowUrl() {
+    void testGetDataRetrievalUrl_WithoutDates() {
         // Given
         String flowId = "test-flow-id";
         String apiKey = "test-api-key";
 
         // When
-        String url = dataFlowService.getFlowUrl(flowId, apiKey);
+        String url = dataFlowService.getDataRetrievalUrl(flowId, apiKey, null, null);
 
         // Then
-        assertEquals("http://test-base.com/test-flow-id?api_key=test-api-key", url);
+        assertEquals("http://test-base.com/flows/test-flow-id/data?API_KEY=test-api-key", url);
     }
 
     @Test
-    void testDelete_CallsWebhook() {
+    void testDelete_CallsWebhooks() {
         // Given
-        ReflectionTestUtils.setField(dataFlowService, "flowDeleteWebhookEndpoint", "http://test-delete.com");
+        ReflectionTestUtils.setField(dataFlowService, "flowDeleteEndpoint1", "http://test-delete1.com");
+        ReflectionTestUtils.setField(dataFlowService, "flowDeleteEndpoint2", "http://test-delete2.com");
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(testUser));
         when(restTemplate.postForEntity(anyString(), any(), any(Class.class)))
                 .thenReturn(org.springframework.http.ResponseEntity.ok("OK"));
@@ -95,7 +95,6 @@ class DataFlowServiceTest {
 
         // Then
         verify(dataFlowRepository, times(1)).delete(testFlow);
-        verify(restTemplate, times(1)).postForEntity(anyString(), any(), any(Class.class));
+        verify(restTemplate, times(2)).postForEntity(anyString(), any(), any(Class.class));
     }
 }
-

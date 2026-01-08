@@ -5,6 +5,7 @@ import com.sbtgdata.data.Role;
 import com.sbtgdata.data.RoleRepository;
 import com.sbtgdata.data.User;
 import com.sbtgdata.data.UserRepository;
+import com.sbtgdata.data.UserService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -40,13 +41,17 @@ public class AdminPanelView extends VerticalLayout implements BeforeEnterObserve
     @Autowired
     private RoleRepository roleRepository;
 
+    @Autowired
+    private UserService userService;
+
     private Grid<User> userGrid;
 
     public AdminPanelView(SecurityService securityService, UserRepository userRepository,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository, UserService userService) {
         this.securityService = securityService;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.userService = userService;
 
         setSizeFull();
         setPadding(true);
@@ -66,9 +71,14 @@ public class AdminPanelView extends VerticalLayout implements BeforeEnterObserve
                     Notification.show("Nie można usunąć konta administratora", 3000, Notification.Position.MIDDLE);
                     return;
                 }
-                userRepository.delete(user);
-                refreshUsers();
-                Notification.show("Użytkownik usunięty");
+                try {
+                    userService.deleteUser(user.getId());
+                    refreshUsers();
+                    Notification.show("Użytkownik i wszystkie jego przepływy zostały usunięte");
+                } catch (Exception ex) {
+                    Notification.show("Błąd podczas usuwania użytkownika: " + ex.getMessage(), 5000,
+                            Notification.Position.MIDDLE);
+                }
             });
             return new HorizontalLayout(editRolesButton, deleteButton);
         }).setHeader("Akcje");

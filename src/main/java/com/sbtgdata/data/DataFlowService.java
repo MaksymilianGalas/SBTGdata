@@ -11,7 +11,10 @@ import org.springframework.web.client.RestTemplate;
 
 import com.sbtgdata.config.ErrorEventPublisher;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,20 +35,17 @@ public class DataFlowService {
     @Autowired
     private ErrorEventPublisher errorEventPublisher;
 
-    @Value("${external.flow.webhook.url:}")
-    private String flowWebhookEndpoint;
-    
-    @Value("${external.flow.webhook.url2:}")
-    private String flowWebhookEndpoint2;
-    
-    @Value("${external.flow.delete.webhook.url:}")
-    private String flowDeleteWebhookEndpoint;
-    
-    @Value("${external.data.retrieval.webhook.url:}")
-    private String dataRetrievalWebhookEndpoint;
-    
-    @Value("${external.flow.base.url:}")
-    private String flowBaseUrl;
+    @Value("${webhook.flow.create:}")
+    private String flowCreateWebhookEndpoint;
+
+    @Value("${webhook.flow.delete.endpoint1:}")
+    private String flowDeleteEndpoint1;
+
+    @Value("${webhook.flow.delete.endpoint2:}")
+    private String flowDeleteEndpoint2;
+
+    @Value("${external.data.base.url:}")
+    private String dataBaseUrl;
 
     public List<DataFlow> findByOwnerEmail(String ownerEmail) {
         return dataFlowRepository.findByOwnerEmail(ownerEmail);
@@ -63,17 +63,17 @@ public class DataFlowService {
         boolean isNew = dataFlow.getId() == null;
 
         dataFlow.setUpdatedAt(LocalDateTime.now());
-        
+
         if (dataFlow.getUserId() == null && dataFlow.getOwnerEmail() != null) {
             dataFlow.setUserId(resolveOwnerId(dataFlow.getOwnerEmail()));
         }
-        
+
         if (dataFlow.getPythonCode() != null && dataFlow.getFunction() == null) {
             dataFlow.setFunction(dataFlow.getPythonCode());
         }
-        
-        if (dataFlow.getAdditionalLibraries() != null && 
-            (dataFlow.getPackages() == null || dataFlow.getPackages().isEmpty())) {
+
+        if (dataFlow.getAdditionalLibraries() != null &&
+                (dataFlow.getPackages() == null || dataFlow.getPackages().isEmpty())) {
             String[] libs = dataFlow.getAdditionalLibraries().split("\n");
             dataFlow.setPackages(java.util.Arrays.asList(libs));
         }
@@ -111,87 +111,78 @@ public class DataFlowService {
             delete(flowOpt.get());
         }
     }
-    
-    public String getFlowUrl(String flowId, String apiKey) {
-        if (flowBaseUrl == null || flowBaseUrl.isBlank()) {
-            return "";
+
+    public String getDataRetrievalUrl(String flowId, String apiKey, LocalDateTime startDate, LocalDateTime endDate) {
+        if (dataBaseUrl == null || dataBaseUrl.isBlank()) {
+            throw new IllegalStateException("Brak skonfigurowanego bazowego URL do pobierania danych");
         }
-        return flowBaseUrl + "/" + flowId + "?api_key=" + apiKey;
-    }
-    
-    public byte[] retrieveData(String flowId, long startDate, long endDate) {
-        if (dataRetrievalWebhookEndpoint == null || dataRetrievalWebhookEndpoint.isBlank()) {
-            throw new IllegalStateException("Brak skonfigurowanego endpointu pobierania danych");
+
+        StringBuilder url = new StringBuilder();
+        url.append(dataBaseUrl).append("/flows/").append(flowId).append("/data?API_KEY=").append(apiKey);
+
+        if (startDate != null && endDate != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String startDateStr = startDate.format(formatter);
+            String endDateStr = endDate.format(formatter);
+
+            // URL encode dates (space becomes %20)
+            String encodedStart = URLEncoder.encode(startDateStr, StandardCharsets.UTF_8);
+            String encodedEnd = URLEncoder.encode(endDateStr, StandardCharsets.UTF_8);
+
+            url.append("&start_date=").append(encodedStart);
+            url.append("&end_date=").append(encodedEnd);
         }
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("flow_id", flowId);
-        payload.put("start_date", startDate);
-        payload.put("end_date", endDate);
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-        
-        ResponseEntity<byte[]> response = restTemplate.postForEntity(
-            dataRetrievalWebhookEndpoint, request, byte[].class);
-        
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new IllegalStateException("Endpoint zwrócił status " + response.getStatusCode());
-        }
-        
-        return response.getBody();
+
+        return url.toString();
     }
 
     private void notifyExternalOnCreate(DataFlow flow) {
+        if (flowCreateWebhookEndpoint == null || flowCreateWebhookEndpoint.isBlank()) {
+            throw new IllegalStateException("Brak skonfigurowanego endpointu webhook");
+        }
+
         String userId = flow.getUserId() != null ? flow.getUserId() : resolveOwnerId(flow.getOwnerEmail());
-        
-        if (flowWebhookEndpoint != null && !flowWebhookEndpoint.isBlank()) {
-            Map<String, Object> payload1 = new HashMap<>();
-            payload1.put("user_id", userId);
-            payload1.put("flow_id", flow.getId());
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> request1 = new HttpEntity<>(payload1, headers);
-            
-            ResponseEntity<String> response1 = restTemplate.postForEntity(flowWebhookEndpoint, request1, String.class);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("user_id", userId);
+        payload.put("flow_id", flow.getId());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(flowCreateWebhookEndpoint, request, String.class);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Endpoint zwrócił status " + response.getStatusCode());
+        }
+    }
+
+    private void notifyExternalOnDelete(DataFlow flow) {
+        String userId = flow.getUserId() != null ? flow.getUserId() : resolveOwnerId(flow.getOwnerEmail());
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("user_id", userId);
+        payload.put("flow_id", flow.getId());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+
+        // Wyślij do pierwszego endpointu
+        if (flowDeleteEndpoint1 != null && !flowDeleteEndpoint1.isBlank()) {
+            ResponseEntity<String> response1 = restTemplate.postForEntity(flowDeleteEndpoint1, request, String.class);
             if (!response1.getStatusCode().is2xxSuccessful()) {
                 throw new IllegalStateException("Endpoint 1 zwrócił status " + response1.getStatusCode());
             }
         }
-        
-        if (flowWebhookEndpoint2 != null && !flowWebhookEndpoint2.isBlank()) {
-            Map<String, Object> payload2 = new HashMap<>();
-            payload2.put("flow_id", flow.getId());
-            
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> request2 = new HttpEntity<>(payload2, headers);
-            
-            ResponseEntity<String> response2 = restTemplate.postForEntity(flowWebhookEndpoint2, request2, String.class);
+
+        // Wyślij do drugiego endpointu
+        if (flowDeleteEndpoint2 != null && !flowDeleteEndpoint2.isBlank()) {
+            ResponseEntity<String> response2 = restTemplate.postForEntity(flowDeleteEndpoint2, request, String.class);
             if (!response2.getStatusCode().is2xxSuccessful()) {
                 throw new IllegalStateException("Endpoint 2 zwrócił status " + response2.getStatusCode());
             }
         }
-    }
-    
-    private void notifyExternalOnDelete(DataFlow flow) {
-        String userId = flow.getUserId() != null ? flow.getUserId() : resolveOwnerId(flow.getOwnerEmail());
-        
-        if (flowDeleteWebhookEndpoint == null || flowDeleteWebhookEndpoint.isBlank()) {
-            return;
-        }
-        
-        Map<String, Object> payload1 = new HashMap<>();
-        payload1.put("user_id", userId);
-        payload1.put("flow_id", flow.getId());
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request1 = new HttpEntity<>(payload1, headers);
-        
-        restTemplate.postForEntity(flowDeleteWebhookEndpoint, request1, String.class);
     }
 
     private String resolveOwnerId(String ownerEmail) {
