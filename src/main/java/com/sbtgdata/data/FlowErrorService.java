@@ -25,12 +25,6 @@ public class FlowErrorService {
     @Autowired
     private DataFlowRepository dataFlowRepository;
 
-    @Autowired
-    private RestTemplate restTemplate;
-
-    @Value("${external.error.delete.webhook.url:}")
-    private String errorDeleteWebhookEndpoint;
-
     public List<FlowError> getErrorsByFlowId(String flowId) {
         return flowErrorRepository.findByFlowId(flowId);
     }
@@ -66,30 +60,11 @@ public class FlowErrorService {
     }
 
     public void deleteError(String errorId) {
-        flowErrorRepository.findById(errorId).ifPresent(error -> {
-            notifyExternalOnDelete(error);
-            flowErrorRepository.deleteById(errorId);
-        });
+        flowErrorRepository.deleteById(errorId);
     }
 
     public void deleteAllErrorsByFlowId(String flowId) {
         flowErrorRepository.deleteByFlowId(flowId);
     }
 
-    private void notifyExternalOnDelete(FlowError error) {
-        if (errorDeleteWebhookEndpoint == null || errorDeleteWebhookEndpoint.isBlank()) {
-            return;
-        }
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("error_id", error.getId());
-        payload.put("flow_id", error.getFlowId());
-        payload.put("message", error.getMessage());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-
-        restTemplate.postForEntity(errorDeleteWebhookEndpoint, request, String.class);
-    }
 }

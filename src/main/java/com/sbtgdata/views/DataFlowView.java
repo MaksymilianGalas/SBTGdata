@@ -127,7 +127,33 @@ public class DataFlowView extends VerticalLayout {
                 Button errorsButton = new Button("Błędy (" + errorCount + ")",
                         new Icon(VaadinIcon.EXCLAMATION_CIRCLE_O));
                 errorsButton.addClickListener(e -> openErrorsDialog(flow));
-                return errorsButton;
+
+                Button deleteErrorsButton = new Button(new Icon(VaadinIcon.TRASH));
+                deleteErrorsButton.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_SMALL);
+                deleteErrorsButton.getElement().setAttribute("title", "Usuń wszystkie błędy");
+                deleteErrorsButton.addClickListener(e -> {
+                    Dialog confirmDialog = new Dialog();
+                    confirmDialog.setHeaderTitle("Potwierdzenie");
+                    confirmDialog.add(new Paragraph("Czy na pewno chcesz usunąć wszystkie błędy dla tego przepływu?"));
+
+                    Button confirmButton = new Button("Usuń", ev -> {
+                        flowErrorService.deleteAllErrorsByFlowId(flow.getId());
+                        updateList();
+                        confirmDialog.close();
+                        Notification.show("Błędy zostały usunięte", 3000, Notification.Position.MIDDLE);
+                    });
+                    confirmButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+
+                    Button cancelButton = new Button("Anuluj", ev -> confirmDialog.close());
+
+                    confirmDialog.getFooter().add(cancelButton, confirmButton);
+                    confirmDialog.open();
+                });
+
+                HorizontalLayout layout = new HorizontalLayout(errorsButton, deleteErrorsButton);
+                layout.setSpacing(true);
+                layout.setAlignItems(Alignment.CENTER);
+                return layout;
             }
             return new Paragraph("Brak błędów");
         }).setHeader("Błędy");
