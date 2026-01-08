@@ -41,6 +41,9 @@ public class DataFlowView extends VerticalLayout {
     @Value("${entry.data.flow.url}")
     private String entryDataFlowUrl;
 
+    @Value("${data.retrieval.url}")
+    private String dataRetrievalUrl;
+
     @Autowired
     public DataFlowView(DataFlowService dataFlowService, SecurityService securityService,
             FlowErrorService flowErrorService) {
@@ -128,6 +131,17 @@ public class DataFlowView extends VerticalLayout {
             }
             return new Paragraph("Brak błędów");
         }).setHeader("Błędy");
+
+        grid.addComponentColumn(flow -> {
+            if (flow.getId() == null) {
+                return new Paragraph("-");
+            }
+            Button downloadButton = new Button(new Icon(VaadinIcon.DOWNLOAD));
+            downloadButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_SMALL);
+            downloadButton.getElement().setAttribute("title", "Pobierz dane CSV");
+            downloadButton.addClickListener(e -> openDownloadDialog(flow));
+            return downloadButton;
+        }).setHeader("Pobierz dane").setWidth("120px");
 
         grid.addComponentColumn(flow -> {
             boolean isRunning = "RUNNING".equals(flow.getStatus());
@@ -274,6 +288,83 @@ public class DataFlowView extends VerticalLayout {
 
         dialog.add(dialogLayout);
         dialog.getFooter().add(closeButton);
+        dialog.open();
+    }
+
+    private void openDownloadDialog(DataFlow flow) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Pobierz dane CSV: " + flow.getName());
+        dialog.setWidth("500px");
+
+        VerticalLayout dialogLayout = new VerticalLayout();
+
+        Checkbox downloadAllCheckbox = new Checkbox("Pobierz wszystkie dane");
+        downloadAllCheckbox.setValue(false);
+
+        TextField startDateField = new TextField("Data początkowa (YYYY-MM-DD HH:MM:SS)");
+        startDateField.setPlaceholder("2026-01-08 14:30:00");
+        startDateField.setWidthFull();
+
+        TextField endDateField = new TextField("Data końcowa (YYYY-MM-DD HH:MM:SS)");
+        endDateField.setPlaceholder("2026-01-08 15:30:00");
+        endDateField.setWidthFull();
+
+        downloadAllCheckbox.addValueChangeListener(e -> {
+            boolean downloadAll = e.getValue();
+            startDateField.setEnabled(!downloadAll);
+            endDateField.setEnabled(!downloadAll);
+        });
+
+        dialogLayout.add(downloadAllCheckbox, startDateField, endDateField);
+
+        Button downloadButton = new Button("Pobierz", e -> {
+            User currentUser = securityService.getCurrentUser();
+            String apiKey = currentUser != null ? currentUser.getApiKey() : "";
+
+            String url = dataRetrievalUrl + "/flows/" + flow.getId() + "/data?API_KEY=" + apiKey;
+
+            if (!downloadAllCheckbox.getValue()) {
+                if (startDateField.getValue() == null || startDateField.getValue().trim().isEmpty() ||
+                        endDateField.getValue() == null || endDateField.getValue().trim().isEmpty()) {
+                    Notification.show("Wybierz daty lub zaznacz 'Pobierz wszystkie dane'",
+                            3000, Notification.Position.MIDDLE);
+                    return;
+                }
+
+                try {
+                    java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter
+                            .ofPattern("yyyy-MM-dd HH:mm:ss");
+                    java.time.LocalDateTime startDateTime = java.time.LocalDateTime
+                            .parse(startDateField.getValue().trim(), formatter);
+                    java.time.LocalDateTime endDateTime = java.time.LocalDateTime.parse(endDateField.getValue().trim(),
+                            formatter);
+
+                    String startDate = startDateTime.format(formatter);
+                    String endDate = endDateTime.format(formatter);
+
+                    String encodedStartDate = startDate.replace(" ", "%20");
+                    String encodedEndDate = endDate.replace(" ", "%20");
+
+                    url += "&start_date=" + encodedStartDate + "&end_date=" + encodedEndDate;
+                } catch (java.time.format.DateTimeParseException ex) {
+                    Notification.show("Nieprawidłowy format daty. Użyj: YYYY-MM-DD HH:MM:SS (np. 2026-01-08 14:30:00)",
+                            5000, Notification.Position.MIDDLE);
+                    return;
+                }
+            }
+
+            final String finalUrl = url;
+            getUI().ifPresent(ui -> {
+                ui.getPage().executeJs("window.open($0, '_blank')", finalUrl);
+            });
+
+            dialog.close();
+        });
+
+        Button cancelButton = new Button("Anuluj", e -> dialog.close());
+
+        dialog.add(dialogLayout);
+        dialog.getFooter().add(cancelButton, downloadButton);
         dialog.open();
     }
 }
