@@ -62,11 +62,20 @@ public class DataFlowView extends VerticalLayout {
 
     private void configureGrid() {
         grid.setColumns("name");
+        grid.getColumnByKey("name").setHeader("Nazwa").setResizable(true).setAutoWidth(true).setFlexGrow(1);
+
         grid.addColumn(flow -> flow.getPackages() != null && !flow.getPackages().isEmpty() ? "Tak"
                 : "Nie")
-                .setHeader("Dodatkowe biblioteki");
+                .setHeader("Dodatkowe biblioteki")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(0);
 
-        grid.addColumn(DataFlow::getStatus).setHeader("Status");
+        grid.addColumn(DataFlow::getStatus)
+                .setHeader("Status")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(0);
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
@@ -116,7 +125,10 @@ public class DataFlowView extends VerticalLayout {
             layout.setSpacing(false);
             layout.setPadding(false);
             return layout;
-        }).setHeader("URL do wysyłania danych").setWidth("350px");
+        }).setHeader("URL do wysyłania danych")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(2);
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
@@ -156,7 +168,10 @@ public class DataFlowView extends VerticalLayout {
                 return layout;
             }
             return new Paragraph("Brak błędów");
-        }).setHeader("Błędy");
+        }).setHeader("Błędy")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(1);
 
         grid.addComponentColumn(flow -> {
             if (flow.getId() == null) {
@@ -167,7 +182,10 @@ public class DataFlowView extends VerticalLayout {
             downloadButton.getElement().setAttribute("title", "Pobierz dane CSV");
             downloadButton.addClickListener(e -> openDownloadDialog(flow));
             return downloadButton;
-        }).setHeader("Pobierz dane").setWidth("120px");
+        }).setHeader("Pobierz dane")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(0);
 
         grid.addComponentColumn(flow -> {
             boolean isRunning = "RUNNING".equals(flow.getStatus());
@@ -216,7 +234,13 @@ public class DataFlowView extends VerticalLayout {
             }
 
             return new HorizontalLayout(editButton, deleteButton, toggleButton);
-        }).setHeader("Akcje");
+        }).setHeader("Akcje")
+                .setResizable(true)
+                .setAutoWidth(true)
+                .setFlexGrow(2);
+
+        // Włącz możliwość zmiany rozmiaru kolumn
+        grid.setColumnReorderingAllowed(true);
     }
 
     private void updateList() {

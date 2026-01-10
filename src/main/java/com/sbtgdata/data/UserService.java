@@ -124,17 +124,14 @@ public class UserService {
         org.bson.types.ObjectId userObjectId = new org.bson.types.ObjectId(userId);
         List<DataFlow> userFlows = dataFlowRepository.findByUserId(userObjectId);
         for (DataFlow flow : userFlows) {
-            // Najpierw zatrzymaj przepływ, jeśli jest uruchomiony
             if ("RUNNING".equals(flow.getStatus())) {
                 try {
                     dataFlowService.stopFlow(flow.getId());
                 } catch (Exception e) {
-                    // Jeśli zatrzymanie się nie powiedzie, kontynuuj usuwanie
                     errorEventPublisher.publish(null, flow.getId(), userId,
                             "Nie udało się zatrzymać przepływu przed usunięciem: " + e.getMessage());
                 }
             }
-            // Potem usuń przepływ
             dataFlowService.delete(flow);
         }
 

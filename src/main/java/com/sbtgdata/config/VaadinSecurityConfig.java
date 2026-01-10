@@ -16,36 +16,34 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 @EnableWebSecurity
 @EnableMethodSecurity
 public class VaadinSecurityConfig extends VaadinWebSecurity {
-    
+
     private final UserDetailsService userDetailsService;
-    
+
     public VaadinSecurityConfig(UserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
     }
-    
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-    
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-            .requestMatchers("/images/**").permitAll()
-        );
+                .requestMatchers("/images/**").permitAll());
         super.configure(http);
-        
+
         setLoginView(http, LoginView.class);
-        
+
         http.userDetailsService(userDetailsService);
-        
+
         SimpleUrlAuthenticationSuccessHandler successHandler = new SimpleUrlAuthenticationSuccessHandler();
-        successHandler.setDefaultTargetUrl("/dashboard");
+        successHandler.setDefaultTargetUrl("/dataflows");
         successHandler.setAlwaysUseDefaultTargetUrl(true);
         http.formLogin()
-            .usernameParameter("username")
-            .passwordParameter("password")
-            .successHandler(successHandler);
+                .usernameParameter("username")
+                .passwordParameter("password")
+                .successHandler(successHandler);
     }
 }
-

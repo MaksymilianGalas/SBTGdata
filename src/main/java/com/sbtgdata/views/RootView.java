@@ -6,10 +6,9 @@ import com.vaadin.flow.router.Route;
 
 @Route("")
 public class RootView implements BeforeEnterObserver {
-    
+
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-        event.rerouteTo("dashboard");
+        event.rerouteTo("dataflows");
     }
 }
-

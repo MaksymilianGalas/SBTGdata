@@ -115,10 +115,8 @@ public class DataFlowService {
 
         DataFlow flow = flowOpt.get();
 
-        // Najpierw wywołaj endpoint, potem zmień status w bazie
         notifyExternalOnStart(flow);
 
-        // Jeśli endpoint się powiódł, zaktualizuj status w bazie
         flow.setStatus("RUNNING");
         flow.setUpdatedAt(LocalDateTime.now());
         dataFlowRepository.save(flow);
@@ -132,10 +130,8 @@ public class DataFlowService {
 
         DataFlow flow = flowOpt.get();
 
-        // Najpierw wywołaj endpoint, potem zmień status w bazie
         notifyExternalOnStop(flow);
 
-        // Jeśli endpoint się powiódł, zaktualizuj status w bazie
         flow.setStatus("STOPPED");
         flow.setUpdatedAt(LocalDateTime.now());
         dataFlowRepository.save(flow);

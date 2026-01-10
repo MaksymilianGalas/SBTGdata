@@ -139,7 +139,7 @@ public class AdminPanelView extends VerticalLayout implements BeforeEnterObserve
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         if (!securityService.hasRole("ADMIN")) {
-            event.rerouteTo("dashboard");
+            event.rerouteTo("dataflows");
             Notification.show("Brak uprawnień do tej strony", 3000, Notification.Position.MIDDLE);
         }
     }
