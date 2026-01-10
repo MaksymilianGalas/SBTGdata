@@ -114,11 +114,14 @@ public class DataFlowService {
         }
 
         DataFlow flow = flowOpt.get();
+
+        // Najpierw wywołaj endpoint, potem zmień status w bazie
+        notifyExternalOnStart(flow);
+
+        // Jeśli endpoint się powiódł, zaktualizuj status w bazie
         flow.setStatus("RUNNING");
         flow.setUpdatedAt(LocalDateTime.now());
         dataFlowRepository.save(flow);
-
-        notifyExternalOnStart(flow);
     }
 
     public void stopFlow(String flowId) {
@@ -128,11 +131,14 @@ public class DataFlowService {
         }
 
         DataFlow flow = flowOpt.get();
+
+        // Najpierw wywołaj endpoint, potem zmień status w bazie
+        notifyExternalOnStop(flow);
+
+        // Jeśli endpoint się powiódł, zaktualizuj status w bazie
         flow.setStatus("STOPPED");
         flow.setUpdatedAt(LocalDateTime.now());
         dataFlowRepository.save(flow);
-
-        notifyExternalOnStop(flow);
     }
 
     private void notifyExternalOnCreate(DataFlow flow) {
@@ -211,6 +217,10 @@ public class DataFlowService {
         } catch (org.springframework.web.client.HttpClientErrorException.Conflict ex) {
             throw new IllegalStateException(
                     "Poczekaj chwilę przed ponownym uruchomieniem przepływu. Poprzednie pody są w trakcie zamykania.");
+        } catch (org.springframework.web.client.HttpClientErrorException ex) {
+            throw new IllegalStateException("Błąd uruchamiania przepływu: " + ex.getMessage());
+        } catch (org.springframework.web.client.HttpServerErrorException ex) {
+            throw new IllegalStateException("Błąd serwera podczas uruchamiania przepływu: " + ex.getMessage());
         }
     }
 
@@ -226,7 +236,13 @@ public class DataFlowService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-        restTemplate.postForEntity(flowStopWebhookEndpoint, request, String.class);
+        try {
+            restTemplate.postForEntity(flowStopWebhookEndpoint, request, String.class);
+        } catch (org.springframework.web.client.HttpClientErrorException ex) {
+            throw new IllegalStateException("Błąd zatrzymywania przepływu: " + ex.getMessage());
+        } catch (org.springframework.web.client.HttpServerErrorException ex) {
+            throw new IllegalStateException("Błąd serwera podczas zatrzymywania przepływu: " + ex.getMessage());
+        }
     }
 
     private String resolveOwnerId(String ownerEmail) {
