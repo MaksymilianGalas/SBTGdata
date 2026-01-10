@@ -71,7 +71,6 @@ class DataFlowServiceTest {
     @Test
     void testDelete_CallsWebhooks() {
         ReflectionTestUtils.setField(dataFlowService, "flowDeleteWebhookEndpoint", "http://test-delete.com");
-        ReflectionTestUtils.setField(dataFlowService, "flowDeleteWebhookEndpoint2", "http://test-delete2.com");
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(testUser));
         when(restTemplate.postForEntity(anyString(), any(), any(Class.class)))
                 .thenReturn(org.springframework.http.ResponseEntity.ok("OK"));
@@ -79,6 +78,6 @@ class DataFlowServiceTest {
         dataFlowService.delete(testFlow);
 
         verify(dataFlowRepository, times(1)).delete(testFlow);
-        verify(restTemplate, times(2)).postForEntity(anyString(), any(), any(Class.class));
+        verify(restTemplate, times(1)).postForEntity(anyString(), any(), any(Class.class));
     }
 }

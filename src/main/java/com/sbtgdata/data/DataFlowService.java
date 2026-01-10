@@ -45,9 +45,6 @@ public class DataFlowService {
     @Value("${external.flow.delete.webhook.url:}")
     private String flowDeleteWebhookEndpoint;
 
-    @Value("${external.flow.delete.webhook.url2:}")
-    private String flowDeleteWebhookEndpoint2;
-
     @Value("${external.flow.start.webhook.url:}")
     private String flowStartWebhookEndpoint;
 
@@ -179,7 +176,7 @@ public class DataFlowService {
     }
 
     private void notifyExternalOnDelete(DataFlow flow) {
-        if (flowStopWebhookEndpoint == null || flowStopWebhookEndpoint.isBlank()) {
+        if (flowDeleteWebhookEndpoint == null || flowDeleteWebhookEndpoint.isBlank()) {
             return;
         }
 
@@ -190,7 +187,7 @@ public class DataFlowService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-        restTemplate.postForEntity(flowStopWebhookEndpoint, request, String.class);
+        restTemplate.postForEntity(flowDeleteWebhookEndpoint, request, String.class);
     }
 
     private void notifyExternalOnStart(DataFlow flow) {
