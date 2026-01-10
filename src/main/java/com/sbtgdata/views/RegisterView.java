@@ -23,7 +23,7 @@ public class RegisterView extends VerticalLayout {
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         H1 title = new H1("Rejestracja");
-        Image logo = new Image("/images/sbtgdata_logo.jpg", "Logo Sbtgdata");
+        Image logo = new Image("/images/sbtgdata_logo1.jpg", "Logo Sbtgdata");
         logo.setMaxWidth("220px");
         logo.setWidth("60%");
         logo.setHeight("auto");
@@ -59,7 +59,7 @@ public class RegisterView extends VerticalLayout {
             }
 
             try {
-                userService.registerUser(email, password,        "USER");
+                userService.registerUser(email, password, "USER");
                 Notification.show("Rejestracja zakończona pomyślnie", 3000, Notification.Position.MIDDLE);
                 getUI().ifPresent(ui -> ui.navigate("login"));
             } catch (IllegalArgumentException ex) {

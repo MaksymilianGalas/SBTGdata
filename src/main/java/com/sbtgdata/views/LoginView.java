@@ -15,15 +15,15 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 @PageTitle("Logowanie")
 @AnonymousAllowed
 public class LoginView extends VerticalLayout implements BeforeEnterObserver {
-    
+
     private LoginForm login = new LoginForm();
-    
+
     public LoginView() {
         addClassName("login-view");
         setSizeFull();
         setAlignItems(Alignment.CENTER);
         setJustifyContentMode(JustifyContentMode.CENTER);
-        Image logo = new Image("/images/sbtgdata_logo.jpg", "Logo Sbtgdata");
+        Image logo = new Image("/images/sbtgdata_logo1.jpg", "Logo Sbtgdata");
         logo.setMaxWidth("220px");
         logo.setWidth("60%");
         logo.setHeight("auto");
@@ -51,15 +51,14 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
 
         add(logo, login, registerButton);
     }
-    
+
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
         if (beforeEnterEvent.getLocation()
-            .getQueryParameters()
-            .getParameters()
-            .containsKey("error")) {
+                .getQueryParameters()
+                .getParameters()
+                .containsKey("error")) {
             login.setError(true);
         }
     }
 }
-
