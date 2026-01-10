@@ -180,7 +180,11 @@ public class DataFlowService {
             return;
         }
 
+        String userId = flow.getUserIdAsString() != null ? flow.getUserIdAsString()
+                : resolveOwnerId(flow.getOwnerEmail());
+
         Map<String, Object> payload = new HashMap<>();
+        payload.put("user_id", userId);
         payload.put("flow_id", flow.getId());
 
         HttpHeaders headers = new HttpHeaders();
