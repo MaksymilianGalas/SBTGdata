@@ -179,31 +179,18 @@ public class DataFlowService {
     }
 
     private void notifyExternalOnDelete(DataFlow flow) {
-        String userId = flow.getUserIdAsString() != null ? flow.getUserIdAsString()
-                : resolveOwnerId(flow.getOwnerEmail());
-
-        if (flowDeleteWebhookEndpoint != null && !flowDeleteWebhookEndpoint.isBlank()) {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("user_id", userId);
-            payload.put("flow_id", flow.getId());
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
-
-            restTemplate.postForEntity(flowDeleteWebhookEndpoint, request, String.class);
+        if (flowStopWebhookEndpoint == null || flowStopWebhookEndpoint.isBlank()) {
+            return;
         }
 
-        if (flowDeleteWebhookEndpoint2 != null && !flowDeleteWebhookEndpoint2.isBlank()) {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("flow_id", flow.getId());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("flow_id", flow.getId());
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-            restTemplate.postForEntity(flowDeleteWebhookEndpoint2, request, String.class);
-        }
+        restTemplate.postForEntity(flowStopWebhookEndpoint, request, String.class);
     }
 
     private void notifyExternalOnStart(DataFlow flow) {
@@ -218,7 +205,12 @@ public class DataFlowService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
-        restTemplate.postForEntity(flowStartWebhookEndpoint, request, String.class);
+        try {
+            restTemplate.postForEntity(flowStartWebhookEndpoint, request, String.class);
+        } catch (org.springframework.web.client.HttpClientErrorException.Conflict ex) {
+            throw new IllegalStateException(
+                    "Poczekaj chwilę przed ponownym uruchomieniem przepływu. Poprzednie pody są w trakcie zamykania.");
+        }
     }
 
     private void notifyExternalOnStop(DataFlow flow) {
