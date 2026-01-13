@@ -60,19 +60,62 @@ public class AdminDataFlowView extends VerticalLayout implements BeforeEnterObse
 
     private void configureGrid() {
         grid.setColumns("name", "ownerEmail");
+
+        grid.addColumn(DataFlow::getStatus)
+                .setHeader("Status")
+                .setResizable(true)
+                .setAutoWidth(true);
+
         grid.addColumn(flow -> flow.getPackages() != null && !flow.getPackages().isEmpty() ? "Tak"
                 : "Nie")
                 .setHeader("Dodatkowe biblioteki");
 
         grid.addComponentColumn(flow -> {
             Button viewButton = new Button("Podgląd", e -> openFlowViewer(flow));
-            Button deleteButton = new Button("Usuń", e -> {
-                dataFlowService.delete(flow);
-                updateList(null);
-                Notification.show("Przepływ usunięty");
-            });
+            Button deleteButton = new Button("Usuń", e -> confirmAndDeleteFlow(flow));
             return new HorizontalLayout(viewButton, deleteButton);
         }).setHeader("Akcje");
+    }
+
+    private void confirmAndDeleteFlow(DataFlow flow) {
+        Dialog confirmDialog = new Dialog();
+        confirmDialog.setHeaderTitle("Potwierdzenie usunięcia");
+        confirmDialog.setWidth("500px");
+
+        VerticalLayout dialogLayout = new VerticalLayout();
+
+        boolean isRunning = "RUNNING".equals(flow.getStatus());
+        String message = isRunning
+                ? "Przepływ \"" + flow.getName()
+                        + "\" jest uruchomiony. Zostanie najpierw zatrzymany, a następnie usunięty. Kontynuować?"
+                : "Czy na pewno chcesz usunąć przepływ \"" + flow.getName() + "\"?";
+
+        dialogLayout.add(new com.vaadin.flow.component.html.Paragraph(message));
+
+        Button confirmButton = new Button("Usuń", e -> {
+            try {
+                // Jeśli przepływ jest uruchomiony, najpierw go zatrzymaj
+                if (isRunning) {
+                    dataFlowService.stopFlow(flow.getId());
+                    Notification.show("Przepływ zatrzymany, usuwanie...", 2000, Notification.Position.MIDDLE);
+                }
+
+                // Teraz usuń przepływ (webhook + usunięcie z bazy)
+                dataFlowService.delete(flow);
+                updateList(null);
+                confirmDialog.close();
+                Notification.show("Przepływ usunięty", 3000, Notification.Position.MIDDLE);
+            } catch (Exception ex) {
+                Notification.show("Błąd: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            }
+        });
+        confirmButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+
+        Button cancelButton = new Button("Anuluj", e -> confirmDialog.close());
+
+        confirmDialog.add(dialogLayout);
+        confirmDialog.getFooter().add(cancelButton, confirmButton);
+        confirmDialog.open();
     }
 
     private void updateList(String emailFilter) {
